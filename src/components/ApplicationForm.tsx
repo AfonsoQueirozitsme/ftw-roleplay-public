@@ -1,5 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { motion, AnimatePresence } from "framer-motion";
+import { CheckCircle } from "lucide-react"; // ícone bonito
 
 type ApplicationFormProps = { className?: string };
 
@@ -13,8 +15,7 @@ type DiscordInfo = {
 
 const ApplicationForm: React.FC<ApplicationFormProps> = ({ className = "" }) => {
   const theme = {
-    ring:
-      "focus:outline-none focus:ring-2 focus:ring-red-500/70 focus:ring-offset-2 focus:ring-offset-black",
+    ring: "focus:outline-none focus:ring-2 focus:ring-red-500/70 focus:ring-offset-2 focus:ring-offset-black",
   };
 
   const [submitted, setSubmitted] = useState(false);
@@ -32,11 +33,11 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({ className = "" }) => 
   function isSnowflake(v: string) {
     return /^[0-9]{17,19}$/.test(v);
   }
-  // fallback local: inferir data do snowflake caso a function não devolva
+
   const discordCreatedDate = useMemo(() => {
     if (!discordInfo?.id) return null;
     try {
-      const ms = (BigInt(discordInfo.id) >> 22n) + 1420070400000n; // epoch Discord
+      const ms = (BigInt(discordInfo.id) >> 22n) + 1420070400000n;
       return new Date(Number(ms)).toISOString().slice(0, 10);
     } catch {
       return discordInfo?.created_at_from_snowflake?.slice(0, 10) ?? null;
@@ -56,7 +57,6 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({ className = "" }) => 
 
     setDiscordLoading(true);
     try {
-      // CHAMA A EDGE FUNCTION DO SUPABASE (sem URLs marados)
       const { data, error } = await supabase.functions.invoke("discord-lookup", {
         body: { discordId: id },
       });
@@ -87,8 +87,6 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({ className = "" }) => 
     if (loading) return;
 
     const fd = new FormData(e.currentTarget);
-
-    // Honeypot anti-bot
     const website = (fd.get("website") as string)?.trim();
     if (website) return;
 
@@ -112,24 +110,25 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({ className = "" }) => 
 
     setLoading(true);
     try {
-      const { error } = await supabase.from("applications").insert([
-        {
-          nome,
-          email,
-          personagem,
-          motivacao,
-          website: website || null,
-          status: "pending",
-
-          // Discord
-          discord_id: discordInfo.id,
-          discord_username: discordInfo.username,
-          discord_global_name: discordInfo.global_name,
-          discord_avatar_url: discordInfo.avatar_url,
-          discord_verified: true,
-          discord_checked_at: new Date().toISOString(),
-        },
-      ]);
+      const { error } = await supabase
+        .from("applications")
+        .insert([
+          {
+            nome,
+            email,
+            personagem,
+            motivacao,
+            website: website || null,
+            status: "pending",
+            discord_id: discordInfo.id,
+            discord_username: discordInfo.username,
+            discord_global_name: discordInfo.global_name,
+            discord_avatar_url: discordInfo.avatar_url,
+            discord_verified: true,
+            discord_checked_at: new Date().toISOString(),
+          },
+        ])
+        .select(); // força a devolver a linha criada (opcional)
 
       if (error) {
         console.error(error);
@@ -153,16 +152,37 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({ className = "" }) => 
   return (
     <section id="candidatura" className={`scroll-mt-24 py-32 md:py-40 ${className}`}>
       <div className="mx-auto max-w-6xl px-6">
-        {/* Sucesso / Erro */}
-        {submitted && (
-          <div
-            role="status"
-            aria-live="polite"
-            className="mb-6 rounded-xl border border-green-400/30 bg-green-500/10 text-green-300 px-4 py-3"
-          >
-            Candidatura enviada com sucesso. Vais receber novidades por e-mail.
-          </div>
-        )}
+        {/* Modal animado de sucesso */}
+        <AnimatePresence>
+          {submitted && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.8 }}
+              transition={{ duration: 0.3 }}
+              className="fixed inset-0 flex items-center justify-center bg-black/70 z-50"
+            >
+              <motion.div
+                initial={{ y: 50, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                exit={{ y: 50, opacity: 0 }}
+                className="bg-white/10 border border-white/20 rounded-2xl p-10 text-center max-w-md shadow-xl backdrop-blur-xl"
+              >
+                <CheckCircle className="w-16 h-16 text-green-400 mx-auto mb-4 animate-pulse" />
+                <h3 className="text-2xl font-bold mb-2">Estás inscrito! 🎉</h3>
+                <p className="text-white/70">
+                  A tua candidatura foi enviada com sucesso. Vais receber uma mensagem no Discord em breve com mais detalhes.
+                </p>
+                <button
+                  onClick={() => setSubmitted(false)}
+                  className="mt-6 px-6 py-3 rounded-xl font-semibold bg-green-500 text-black hover:brightness-95 transition"
+                >
+                  Fechar
+                </button>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {errors && (
           <div
@@ -173,6 +193,7 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({ className = "" }) => 
           </div>
         )}
 
+        {/* Formulário */}
         <div className="rounded-2xl p-10 md:p-14 backdrop-blur-xl bg-white/10 border border-white/15 shadow-[0_10px_30px_rgba(0,0,0,0.25)]">
           <h2 className="text-3xl md:text-4xl font-extrabold">Candidatura — Early Access</h2>
           <p className="mt-4 text-white/70">
@@ -181,14 +202,7 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({ className = "" }) => 
 
           <form onSubmit={onSubmit} className="mt-8 grid md:grid-cols-2 gap-8" noValidate>
             {/* Honeypot */}
-            <input
-              type="text"
-              name="website"
-              tabIndex={-1}
-              autoComplete="off"
-              className="hidden"
-              aria-hidden="true"
-            />
+            <input type="text" name="website" tabIndex={-1} autoComplete="off" className="hidden" aria-hidden="true" />
 
             {/* Nome */}
             <div>
@@ -221,7 +235,7 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({ className = "" }) => 
               />
             </div>
 
-            {/* Discord ID + Validar */}
+            {/* Discord ID + validar */}
             <div className="md:col-span-2">
               <label htmlFor="discordId" className="block text-sm mb-2">
                 Discord ID
@@ -246,16 +260,10 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({ className = "" }) => 
                 </button>
               </div>
 
-              {/* Card com info do Discord */}
               {discordInfo && (
                 <div className="mt-4 flex items-center gap-4 p-4 rounded-xl bg-black/30 border border-white/15">
                   {discordInfo.avatar_url ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={discordInfo.avatar_url}
-                      alt="Avatar"
-                      className="w-12 h-12 rounded-full"
-                    />
+                    <img src={discordInfo.avatar_url} alt="Avatar" className="w-12 h-12 rounded-full" />
                   ) : (
                     <div className="w-12 h-12 rounded-full bg-white/10" />
                   )}
