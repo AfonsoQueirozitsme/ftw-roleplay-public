@@ -25,12 +25,12 @@ const Footer: React.FC<FooterProps> = ({ onOpenCookies }) => {
   const links = [
     { label: "Início", href: "#" },
     { label: "Shop", href: "/shop" },
-    { label: "Regras", href: "/regras" },
-    { label: "Eventos", href: "/eventos" },
-    { label: "Sobre", href: "/sobre" },
+    { label: "Regras", href: "/rules" },
+    { label: "Eventos", href: "/events" },
+    { label: "Sobre", href: "/about" },
     { label: "Suporte", href: "/dashboard" },
-    { label: "Termos", href: "/termos" },
-    { label: "Privacidade", href: "/privacidade" },
+    { label: "Termos", href: "/terms" },
+    { label: "Privacidade", href: "/privacy" },
     { label: "Cookies", href: "/cookies" },
   ];
 

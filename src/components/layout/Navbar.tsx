@@ -1,10 +1,10 @@
+// src/components/Navbar.tsx (ou onde o tens)
 import React, { useEffect, useRef, useState } from "react";
 import { ShoppingBag, LogIn, User, LayoutDashboard, LogOut, Shield, ChevronDown } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { Link, NavLink, useNavigate } from "react-router-dom";
 
 // Carrega Montserrat + Goldman
 function useLoadFonts() {
-
   useEffect(() => {
     const link = document.createElement("link");
     link.rel = "stylesheet";
@@ -54,42 +54,75 @@ const Navbar: React.FC<NavbarProps> = ({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  // helper para navegar + callback opcional + fechar menu
+  const go = (path: string, cb?: () => void) => {
+    cb?.();
+    navigate(path);
+    setOpen(false);
+  };
+
+  const navLinkClass = ({ isActive }: { isActive: boolean }) =>
+    `hover:text-[#fbfbfb] transition ${isActive ? "text-[#fbfbfb]" : "text-[#6c6c6c]"}`;
+
   return (
     <header
       className="h-16 w-full bg-[#151515] text-[#fbfbfb] border-b border-[#6c6c6c]"
       style={{ fontFamily: "Montserrat, system-ui, sans-serif" }}
     >
       <div className="mx-auto h-full px-6 grid grid-cols-3 items-center">
-        {/* Esquerda: Logo (apenas a imagem) */}
+        {/* Esquerda: Logo (vai para Home) */}
         <div className="flex items-center gap-3">
-          <a href="#inicio" className="inline-flex items-center gap-2">
+          <Link to="/" className="inline-flex items-center gap-2" aria-label="Ir para início">
             <img
               src={LOGO_URL}
               alt="FTW Roleplay"
               className="w-10 h-10 object-contain select-none"
               draggable={false}
             />
-          </a>
+          </Link>
         </div>
 
         {/* Centro: Navegação */}
         <nav className="flex justify-center">
-          <ul className="flex items-center gap-7 text-sm text-[#6c6c6c]">
-            <li><a href="#inicio" className="hover:text-[#fbfbfb] transition">INÍCIO</a></li>
-            <li><a href="#shop" className="hover:text-[#fbfbfb] transition">SHOP</a></li>
-            <li><a href="#regras" className="hover:text-[#fbfbfb] transition">REGRAS</a></li>
-            <li><a href="#eventos" className="hover:text-[#fbfbfb] transition">EVENTOS</a></li>
-            <li><a href="#sobre" className="hover:text-[#fbfbfb] transition">SOBRE</a></li>
+          <ul className="flex items-center gap-7 text-sm">
+            <li>
+              <NavLink to="/" className={navLinkClass} end>
+                INÍCIO
+              </NavLink>
+            </li>
+            <li>
+              <NavLink to="/shop" className={navLinkClass}>
+                SHOP
+              </NavLink>
+            </li>
+            <li>
+              <NavLink to="/rules" className={navLinkClass}>
+                REGRAS
+              </NavLink>
+            </li>
+            <li>
+              <NavLink to="/events" className={navLinkClass}>
+                EVENTOS
+              </NavLink>
+            </li>
+            <li>
+              <NavLink to="/about" className={navLinkClass}>
+                SOBRE
+              </NavLink>
+            </li>
           </ul>
         </nav>
 
         {/* Direita: Loja + Auth */}
         <div className="flex items-center justify-end gap-4">
-          <a title="Loja" href="#shop" className="text-[#6c6c6c] hover:text-[#fbfbfb] transition inline-flex">
+          <button
+            title="Loja"
+            onClick={() => navigate("/shop")}
+            className="text-[#6c6c6c] hover:text-[#fbfbfb] transition inline-flex"
+          >
             <ShoppingBag className="w-5 h-5" />
-          </a>
+          </button>
 
-          {/* Se autenticado: mostra avatar/ícone e dropdown; caso contrário: Entrar */}
           {isAuthenticated ? (
             <div className="relative" ref={menuRef}>
               <button
@@ -108,31 +141,32 @@ const Navbar: React.FC<NavbarProps> = ({
                   role="menu"
                   className="absolute right-0 mt-2 w-56 rounded-xl border border-[#6c6c6c] bg-[#151515] shadow-xl overflow-hidden"
                 >
-                  <a
+                  <button
                     role="menuitem"
-                    href="#dashboard"
-                    onClick={(e) => { onDashboardClick?.(); }}
-                    className="flex items-center gap-3 px-4 py-3 hover:bg-white/10 transition"
+                    onClick={() => go("/dashboard", onDashboardClick)}
+                    className="w-full text-left flex items-center gap-3 px-4 py-3 hover:bg-white/10 transition"
                   >
                     <LayoutDashboard className="w-4 h-4" />
                     <span>Aceder ao dashboard</span>
-                  </a>
+                  </button>
 
                   {isAdmin && (
-                    <a
+                    <button
                       role="menuitem"
-                      href="#admin"
-                      onClick={(e) => { onAdminClick?.(); }}
-                      className="flex items-center gap-3 px-4 py-3 hover:bg-white/10 transition"
+                      onClick={() => go("/admin", onAdminClick)}
+                      className="w-full text-left flex items-center gap-3 px-4 py-3 hover:bg-white/10 transition"
                     >
                       <Shield className="w-4 h-4" />
                       <span>Admin</span>
-                    </a>
+                    </button>
                   )}
 
                   <button
                     role="menuitem"
-                    onClick={() => { onLogoutClick?.(); }}
+                    onClick={() => {
+                      onLogoutClick?.();
+                      setOpen(false);
+                    }}
                     className="w-full text-left flex items-center gap-3 px-4 py-3 hover:bg-white/10 transition"
                   >
                     <LogOut className="w-4 h-4" />
@@ -143,12 +177,15 @@ const Navbar: React.FC<NavbarProps> = ({
             </div>
           ) : (
             <button
-            onClick={() => navigate("/auth")}
-            className="inline-flex items-center gap-2 font-semibold text-[#e53e30] hover:opacity-90"
-          >
-            <LogIn className="w-5 h-5" />
-            <span>Entrar</span>
-          </button>
+              onClick={() => {
+                onLoginClick?.();
+                navigate("/auth");
+              }}
+              className="inline-flex items-center gap-2 font-semibold text-[#e53e30] hover:opacity-90"
+            >
+              <LogIn className="w-5 h-5" />
+              <span>Entrar</span>
+            </button>
           )}
         </div>
       </div>
