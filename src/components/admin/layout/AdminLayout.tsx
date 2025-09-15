@@ -1,8 +1,9 @@
+// src/admin/AdminLayout.tsx
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Outlet, NavLink, useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { listOnlinePlayers, listPlayers } from "@/lib/api/players";
-import { listVehiclesGlobal } from "@/lib/api/vehicles"; // 👈 ver patch no fim
+import { listVehiclesGlobal } from "@/lib/api/vehicles";
 
 /* ---------------- Icons (inline) ---------------- */
 const Icon = {
@@ -28,12 +29,94 @@ function Spinner({ className = "" }: { className?: string }) {
 const getInitials = (s?: string | null) =>
   (s?.trim().split(/[^\p{L}\p{N}]+/u).filter(Boolean).slice(0,2).map(x=>x[0]).join("") || "??").toUpperCase();
 
+/* ---------------- Permissões (staff) ---------------- */
+type Perms = string[];
+
+const isStaffByPerms = (perms?: Perms | null) =>
+  !!perms?.some(p => p.startsWith("ftw.") || p.startsWith("group.ftw_"));
+
+const has = (perms: Perms | null | undefined, p: string) => !!perms?.includes(p);
+const hasAny = (perms: Perms | null | undefined, req: string[]) =>
+  !!perms && req.some(r => perms.includes(r));
+const isGestao = (perms?: Perms | null) => has(perms, "ftw.management.all");
+
+/** ACL por rota (prefix match) */
+const ACL: Record<string, string[] | "staff"> = {
+  "/admin": "staff", // qualquer staff entra no painel
+  "/admin/players": ["ftw.supervise.basic","ftw.supervise.advanced","ftw.admin.basic","ftw.admin.senior","ftw.admin.head","ftw.management.all"],
+  "/admin/txadmin": ["ftw.admin.senior","ftw.admin.head","ftw.management.all"],
+  "/admin/candidaturas": ["ftw.support.read","ftw.support.manage","ftw.admin.basic","ftw.management.all"],
+  "/admin/logs": ["ftw.admin.basic","ftw.admin.senior","ftw.admin.head","ftw.management.all"],
+  "/admin/imagens": ["ftw.dev","group.ftw_dev","ftw.management.all"],     // devs ou gestão
+  "/admin/resources": ["ftw.dev","group.ftw_dev","ftw.management.all"],   // devs ou gestão
+};
+
+function requiredForPath(pathname: string): string[] | "staff" {
+  // escolhe o prefixo mais longo que dê match
+  const key = Object.keys(ACL)
+    .filter(k => pathname === k || pathname.startsWith(k + "/"))
+    .sort((a,b) => b.length - a.length)[0];
+  return key ? ACL[key] : "staff";
+}
+
+function canAccess(perms: Perms | null | undefined, pathname: string): boolean {
+  if (isGestao(perms)) return true; // gestão entra em tudo
+  const need = requiredForPath(pathname);
+  if (need === "staff") return isStaffByPerms(perms);
+  return hasAny(perms, need);
+}
+
+/* Hook: obter perms do utilizador atual */
+function useStaffPerms() {
+  const [perms, setPerms] = useState<Perms | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) { if (alive) { setPerms(null); setLoading(false); } return; }
+
+        const { data, error } = await supabase
+          .from("staff_perms")
+          .select("perms")
+          .eq("user_id", user.id)
+          .maybeSingle();
+
+        if (!alive) return;
+        if (error) { console.warn("staff_perms error:", error); setPerms(null); }
+        else setPerms((data?.perms as string[]) ?? []);
+      } finally {
+        if (alive) setLoading(false);
+      }
+    })();
+
+    // se a sessão mudar, volta a carregar
+    const sub = supabase.auth.onAuthStateChange((_e, _s) => {
+      setLoading(true);
+      supabase.auth.getUser().then(async ({ data: { user } }) => {
+        if (!user) { setPerms(null); setLoading(false); return; }
+        const { data } = await supabase.from("staff_perms").select("perms").eq("user_id", user.id).maybeSingle();
+        setPerms((data?.perms as string[]) ?? []);
+        setLoading(false);
+      });
+    });
+
+    return () => { alive = false; sub.data.subscription.unsubscribe(); };
+  }, []);
+
+  return { perms, loading };
+}
+
 /* ---------------- Guard ---------------- */
 function useAdminGuard() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [ready, setReady] = useState(false);
+  const { perms, loading } = useStaffPerms();
+
   useEffect(() => {
-    let unsub: (() => void) | undefined;
     (async () => {
       const { data } = await supabase.auth.getSession();
       if (!data.session) {
@@ -41,15 +124,21 @@ function useAdminGuard() {
         setReady(true);
         return;
       }
-      setReady(true);
-      const sub = supabase.auth.onAuthStateChange((_e, session) => {
-        if (!session) navigate("/admin/login", { replace: true });
-      });
-      unsub = () => sub.data.subscription.unsubscribe();
+      // espera pelas perms para decidir
+      if (!loading) {
+        if (!isStaffByPerms(perms)) {
+          // não tem qualquer staff → fora
+          navigate("/auth", { replace: true });
+        } else if (!canAccess(perms, location.pathname)) {
+          // tem staff mas não tem direito a esta rota → manda para /admin
+          navigate("/admin", { replace: true });
+        }
+        setReady(true);
+      }
     })();
-    return () => unsub?.();
-  }, [navigate]);
-  return ready;
+  }, [navigate, location.pathname, perms, loading]);
+
+  return { ready, perms, loading };
 }
 
 /* ---------------- Online: contador + drawer ---------------- */
@@ -88,7 +177,6 @@ function useOnlineCount() {
   }, []);
   return { count, loading };
 }
-
 function OnlineDrawer({
   open, onClose, navigateToPlayer,
 }: { open: boolean; onClose: () => void; navigateToPlayer: (id: string) => void; }) {
@@ -266,7 +354,6 @@ function CommandPalette({
   open, onClose, navigate,
 }: { open: boolean; onClose: () => void; navigate: ReturnType<typeof useNavigate> }) {
   const [q, setQ] = useState("");
-  const wrapRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const { loading, pageHits, players, vehicles } = usePalette(open, q);
 
@@ -296,7 +383,6 @@ function CommandPalette({
     } else if (item.kind === "player") {
       navigate(`/admin/players/${encodeURIComponent(item.id)}`);
     } else if (item.kind === "vehicle") {
-      // sem página de veículos dedicada: manda para o perfil do dono (se souber), senão para Players com query
       const ref = item.citizenid || item.license || item.plate;
       navigate(`/admin/players/${encodeURIComponent(String(ref))}?tab=garage`);
     }
@@ -306,8 +392,8 @@ function CommandPalette({
   return (
     <>
       <div className={cx("fixed inset-0 z-50 bg-black/40 transition-opacity", open ? "opacity-100" : "pointer-events-none opacity-0")} onClick={onClose} />
-      <div ref={wrapRef} className={cx("fixed left-1/2 top-16 z-50 w-[min(92vw,720px)] -translate-x-1/2 transition-all",
-                                       open ? "opacity-100 translate-y-0" : "pointer-events-none opacity-0 -translate-y-2")}>
+      <div className={cx("fixed left-1/2 top-16 z-50 w-[min(92vw,720px)] -translate-x-1/2 transition-all",
+                         open ? "opacity-100 translate-y-0" : "pointer-events-none opacity-0 -translate-y-2")}>
         <div className="rounded-2xl border border-white/10 bg-[#0b0b0c] shadow-2xl overflow-hidden">
           <div className="flex items-center gap-2 px-3 py-2 border-b border-white/10">
             <Icon.Search className="h-4 w-4 text-white/60" />
@@ -331,7 +417,7 @@ function CommandPalette({
                     </li>
                   );
                 })}
-                {pageHits.length === 0 && <div className="px-3 py-2 text-xs text-white/50">Sem resultados</div>}
+                {pageHits.length === 0 && <div className="px-3 py-2 text-xs text-white/50">{loading ? "A carregar…" : "Sem resultados"}</div>}
               </ul>
             </div>
 
@@ -375,7 +461,7 @@ function CommandPalette({
 
 /* ---------------- Layout ---------------- */
 export default function AdminLayout() {
-  const ready = useAdminGuard();
+  const { ready, perms, loading } = useAdminGuard();
   const navigate = useNavigate();
   const location = useLocation();
   const [collapsed, setCollapsed] = useState(false);
@@ -401,16 +487,21 @@ export default function AdminLayout() {
   useEffect(() => { supabase.auth.getUser().then(({ data }) => setEmail(data.user?.email ?? null)); }, []);
   const onLogout = async () => { await supabase.auth.signOut(); navigate("/admin/login", { replace: true }); };
 
-  const nav = [
-    { to: "/admin", label: "Dashboard", icon: Icon.Home, exact: true },
-    { to: "/admin/players", label: "Players", icon: Icon.Users },
-    { to: "/admin/txadmin", label: "txAdmin", icon: Icon.Server },
-    { to: "/admin/candidaturas", label: "Candidaturas", icon: Icon.Clipboard },
-    { to: "/admin/logs", label: "Logs", icon: Icon.Logs },
-    { to: "/admin/imagens", label: "Imagens", icon: Icon.Image },
-    { to: "/admin/resources", label: "Recursos", icon: Icon.Image },
-
-  ];
+  // Navegação com ACL por item
+  const nav = useMemo(() => {
+    const all = [
+      { to: "/admin", label: "Dashboard", icon: Icon.Home, exact: true, need: "staff" as const },
+      { to: "/admin/players", label: "Players", icon: Icon.Users, need: ACL["/admin/players"] as string[] },
+      { to: "/admin/txadmin", label: "txAdmin", icon: Icon.Server, need: ACL["/admin/txadmin"] as string[] },
+      { to: "/admin/candidaturas", label: "Candidaturas", icon: Icon.Clipboard, need: ACL["/admin/candidaturas"] as string[] },
+      { to: "/admin/logs", label: "Logs", icon: Icon.Logs, need: ACL["/admin/logs"] as string[] },
+      { to: "/admin/imagens", label: "Imagens", icon: Icon.Image, need: ACL["/admin/imagens"] as string[] },
+      { to: "/admin/resources", label: "Recursos", icon: Icon.Image, need: ACL["/admin/resources"] as string[] },
+    ];
+    // Gestão vê tudo; caso contrário, filtra por permissão
+    if (isGestao(perms)) return all;
+    return all.filter(i => (i.need === "staff" ? isStaffByPerms(perms) : hasAny(perms, i.need)));
+  }, [perms]);
 
   const breadcrumb = useMemo(() => {
     const path = location.pathname.replace(/\/+$/, "");
@@ -418,12 +509,12 @@ export default function AdminLayout() {
     const segs = path.split("/").filter(Boolean).slice(1);
     const map: Record<string, string> = Object.fromEntries(nav.map((i) => [i.to.split("/").pop()!, i.label]));
     return ["Dashboard", ...segs.map((s) => map[s] ?? s)];
-  }, [location.pathname]);
+  }, [location.pathname, nav]);
 
-  if (!ready) {
+  if (!ready || loading) {
     return (
       <div className="min-h-screen grid place-items-center bg-[#0b0b0c] text-white">
-        <div className="flex items-center gap-2 text-sm text-white/70"><Spinner /> A carregar…</div>
+        <div className="flex items-center gap-2 text-sm text-white/70"><Spinner /> A validar permissões…</div>
       </div>
     );
   }
@@ -436,7 +527,7 @@ export default function AdminLayout() {
           <button className="md:hidden p-2 rounded-lg bg-white/10 hover:bg-white/15" onClick={() => setMobileOpen(true)} aria-label="Abrir menu">
             <Icon.Menu className="h-5 w-5" />
           </button>
-        <img src="/logo.svg" alt="Logo" className="h-8 w-8 rounded-xl bg-white/10 p-1" onError={(e)=>((e.currentTarget as HTMLImageElement).style.display="none")} />
+          <img src="/logo.svg" alt="Logo" className="h-8 w-8 rounded-xl bg-white/10 p-1" onError={(e)=>((e.currentTarget as HTMLImageElement).style.display="none")} />
           <h1 className="text-sm md:text-base font-semibold">Painel de Administração</h1>
         </div>
 
@@ -486,33 +577,7 @@ export default function AdminLayout() {
         </aside>
 
         {/* Sidebar mobile */}
-        {mobileOpen && (
-          <>
-            <div className="fixed inset-0 z-40 bg-black/50 md:hidden" onClick={() => setMobileOpen(false)} />
-            <aside className="fixed left-0 top-0 bottom-0 z-50 w-72 bg-[#0b0b0c] border-r border-white/10 p-3 md:hidden">
-              <div className="flex items-center justify-between h-12">
-                <div className="font-semibold">Menu</div>
-                <button className="p-2 rounded-lg bg-white/10 hover:bg-white/15" onClick={() => setMobileOpen(false)}>
-                  <Icon.ChevronLeft className="h-4 w-4" />
-                </button>
-              </div>
-              <nav className="mt-2 flex flex-col gap-1">
-                {nav.map((l) => {
-                  const isActive = l.exact ? location.pathname === "/admin" : location.pathname.startsWith(l.to);
-                  const I = l.icon;
-                  return (
-                    <NavLink key={l.to} to={l.to} end={!!l.exact} onClick={() => setMobileOpen(false)}
-                      className={cx("px-3 py-2 rounded-xl text-sm flex items-center gap-3 transition",
-                                    isActive ? "bg-white text-black shadow-sm" : "text-white/80 hover:text-white hover:bg-white/10")}>
-                      <I className={cx("h-4 w-4", isActive && "text-black")} />
-                      <span className="truncate">{l.label}</span>
-                    </NavLink>
-                  );
-                })}
-              </nav>
-            </aside>
-          </>
-        )}
+        <MobileSidebar open={mobileOpen} onClose={()=>setMobileOpen(false)} nav={nav} pathname={location.pathname} />
 
         {/* Conteúdo */}
         <main className="flex-1 p-4 md:p-6">
@@ -537,5 +602,39 @@ export default function AdminLayout() {
       <OnlineDrawer open={onlineOpen} onClose={() => setOnlineOpen(false)} navigateToPlayer={(id) => navigate(`/admin/players/${encodeURIComponent(id)}`)} />
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} navigate={navigate} />
     </div>
+  );
+}
+
+/* Sidebar mobile isolada para reuso */
+function MobileSidebar({ open, onClose, nav, pathname }:{
+  open:boolean; onClose:()=>void; nav: Array<{to:string; label:string; icon:any; exact?:boolean}>; pathname:string;
+}) {
+  if (!open) return null;
+  return (
+    <>
+      <div className="fixed inset-0 z-40 bg-black/50 md:hidden" onClick={onClose} />
+      <aside className="fixed left-0 top-0 bottom-0 z-50 w-72 bg-[#0b0b0c] border-r border-white/10 p-3 md:hidden">
+        <div className="flex items-center justify-between h-12">
+          <div className="font-semibold">Menu</div>
+          <button className="p-2 rounded-lg bg-white/10 hover:bg-white/15" onClick={onClose}>
+            <Icon.ChevronLeft className="h-4 w-4" />
+          </button>
+        </div>
+        <nav className="mt-2 flex flex-col gap-1">
+          {nav.map((l) => {
+            const isActive = l.exact ? pathname === "/admin" : pathname.startsWith(l.to);
+            const I = l.icon;
+            return (
+              <NavLink key={l.to} to={l.to} end={!!l.exact} onClick={onClose}
+                className={cx("px-3 py-2 rounded-xl text-sm flex items-center gap-3 transition",
+                              isActive ? "bg-white text-black shadow-sm" : "text-white/80 hover:text-white hover:bg-white/10")}>
+                <I className={cx("h-4 w-4", isActive && "text-black")} />
+                <span className="truncate">{l.label}</span>
+              </NavLink>
+            );
+          })}
+        </nav>
+      </aside>
+    </>
   );
 }
