@@ -1,93 +1,31 @@
-import React, { useMemo, useState } from "react";
+import React, { useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { motion, AnimatePresence } from "framer-motion";
-import { CheckCircle } from "lucide-react"; // ícone bonito
+import { CheckCircle } from "lucide-react";
 
 type ApplicationFormProps = { className?: string };
 
-type DiscordInfo = {
-  id: string;
-  username: string;
-  global_name: string | null;
-  avatar_url: string | null;
-  created_at_from_snowflake?: string;
-};
+function isValidEmail(v: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+}
 
 const ApplicationForm: React.FC<ApplicationFormProps> = ({ className = "" }) => {
-  const theme = {
-    ring: "focus:outline-none focus:ring-2 focus:ring-red-500/70 focus:ring-offset-2 focus:ring-offset-black",
-  };
+  const ring =
+    "focus:outline-none focus:ring-2 focus:ring-[#e53e30]/70 focus:ring-offset-2 focus:ring-offset-[#151515]";
 
   const [submitted, setSubmitted] = useState(false);
   const [errors, setErrors] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const [discordId, setDiscordId] = useState("");
-  const [discordLoading, setDiscordLoading] = useState(false);
-  const [discordInfo, setDiscordInfo] = useState<DiscordInfo | null>(null);
-  const [discordVerified, setDiscordVerified] = useState(false);
-
-  function isValidEmail(v: string) {
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
-  }
-  function isSnowflake(v: string) {
-    return /^[0-9]{17,19}$/.test(v);
-  }
-
-  const discordCreatedDate = useMemo(() => {
-    if (!discordInfo?.id) return null;
-    try {
-      const ms = (BigInt(discordInfo.id) >> 22n) + 1420070400000n;
-      return new Date(Number(ms)).toISOString().slice(0, 10);
-    } catch {
-      return discordInfo?.created_at_from_snowflake?.slice(0, 10) ?? null;
-    }
-  }, [discordInfo?.id, discordInfo?.created_at_from_snowflake]);
-
-  async function validateDiscord() {
-    setErrors(null);
-    setDiscordInfo(null);
-    setDiscordVerified(false);
-
-    const id = discordId.trim();
-    if (!isSnowflake(id)) {
-      setErrors("Discord ID inválido. Deve ter 17 a 19 dígitos numéricos.");
-      return;
-    }
-
-    setDiscordLoading(true);
-    try {
-      const { data, error } = await supabase.functions.invoke("discord-lookup", {
-        body: { discordId: id },
-      });
-
-      if (error) {
-        setErrors(error.message || "Falha a validar o Discord ID.");
-        return;
-      }
-      if (!data?.ok || !data?.user) {
-        setErrors("Não foi possível validar o Discord ID.");
-        return;
-      }
-
-      setDiscordInfo(data.user as DiscordInfo);
-      setDiscordVerified(true);
-    } catch (e) {
-      console.error(e);
-      setErrors("Erro ao contactar o verificador de Discord.");
-    } finally {
-      setDiscordLoading(false);
-    }
-  }
-
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    setErrors(null);
-    setSubmitted(false);
     if (loading) return;
 
+    setErrors(null);
+    setSubmitted(false);
+
     const fd = new FormData(e.currentTarget);
-    const website = (fd.get("website") as string)?.trim();
+    const website = (fd.get("website") as string)?.trim(); // honeypot
     if (website) return;
 
     const email = (fd.get("email") as string)?.trim();
@@ -99,12 +37,8 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({ className = "" }) => 
       setErrors("Preenche todos os campos obrigatórios.");
       return;
     }
-    if (!isValidEmail(email || "")) {
+    if (!isValidEmail(email)) {
       setErrors("Insere um e-mail válido.");
-      return;
-    }
-    if (!discordVerified || !discordInfo) {
-      setErrors("Valida primeiro o teu Discord ID.");
       return;
     }
 
@@ -118,17 +52,18 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({ className = "" }) => 
             email,
             personagem,
             motivacao,
-            website: website || null,
+            website: null,
             status: "pending",
-            discord_id: discordInfo.id,
-            discord_username: discordInfo.username,
-            discord_global_name: discordInfo.global_name,
-            discord_avatar_url: discordInfo.avatar_url,
-            discord_verified: true,
-            discord_checked_at: new Date().toISOString(),
+            // campos de Discord removidos; se existirem na tabela, ficam a null
+            discord_id: null,
+            discord_username: null,
+            discord_global_name: null,
+            discord_avatar_url: null,
+            discord_verified: false,
+            discord_checked_at: null,
           },
         ])
-        .select(); // força a devolver a linha criada (opcional)
+        .select();
 
       if (error) {
         console.error(error);
@@ -138,9 +73,6 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({ className = "" }) => 
 
       setSubmitted(true);
       (e.currentTarget as HTMLFormElement).reset();
-      setDiscordId("");
-      setDiscordInfo(null);
-      setDiscordVerified(false);
     } catch (err) {
       console.error(err);
       setErrors("Ocorreu um erro inesperado. Tenta novamente.");
@@ -150,32 +82,43 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({ className = "" }) => 
   }
 
   return (
-    <section id="candidatura" className={`scroll-mt-24 py-32 md:py-40 ${className}`}>
+    <section
+      id="candidatura"
+      className={`scroll-mt-24 py-24 md:py-28 ${className}`}
+      style={{ fontFamily: "Montserrat, system-ui, sans-serif", color: "#fbfbfb" }}
+    >
       <div className="mx-auto max-w-6xl px-6">
-        {/* Modal animado de sucesso */}
+        {/* MODAL de sucesso — estilo FTW (sólido) */}
         <AnimatePresence>
           {submitted && (
             <motion.div
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.8 }}
-              transition={{ duration: 0.3 }}
-              className="fixed inset-0 flex items-center justify-center bg-black/70 z-50"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 grid place-items-center bg-black/80"
+              role="dialog"
+              aria-modal="true"
             >
               <motion.div
-                initial={{ y: 50, opacity: 0 }}
+                initial={{ y: 20, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
-                exit={{ y: 50, opacity: 0 }}
-                className="bg-white/10 border border-white/20 rounded-2xl p-10 text-center max-w-md shadow-xl backdrop-blur-xl"
+                exit={{ y: 20, opacity: 0 }}
+                transition={{ duration: 0.18 }}
+                className="w-[90vw] max-w-md bg-[#151515] border border-[#6c6c6c] p-8 text-center rounded-none"
               >
-                <CheckCircle className="w-16 h-16 text-green-400 mx-auto mb-4 animate-pulse" />
-                <h3 className="text-2xl font-bold mb-2">Estás inscrito! 🎉</h3>
-                <p className="text-white/70">
-                  A tua candidatura foi enviada com sucesso. Vais receber uma mensagem no Discord em breve com mais detalhes.
+                <CheckCircle className="w-12 h-12 text-[#e53e30] mx-auto mb-4" />
+                <h3
+                  className="text-2xl font-bold mb-2"
+                  style={{ fontFamily: "Goldman, system-ui, sans-serif" }}
+                >
+                  Inscrição concluída
+                </h3>
+                <p className="text-[#fbfbfb]/80">
+                  A tua candidatura foi enviada com sucesso. Recebes novidades em breve.
                 </p>
                 <button
                   onClick={() => setSubmitted(false)}
-                  className="mt-6 px-6 py-3 rounded-xl font-semibold bg-green-500 text-black hover:brightness-95 transition"
+                  className={`mt-6 px-6 py-3 font-semibold bg-[#e53e30] text-[#151515] hover:brightness-95 transition rounded-none ${ring}`}
                 >
                   Fechar
                 </button>
@@ -187,43 +130,52 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({ className = "" }) => 
         {errors && (
           <div
             role="alert"
-            className="mb-6 rounded-xl border border-red-400/30 bg-red-500/10 text-red-300 px-4 py-3"
+            className="mb-6 border border-[#6c6c6c] text-[#e53e30] px-4 py-3 rounded-none"
           >
             {errors}
           </div>
         )}
 
-        {/* Formulário */}
-        <div className="rounded-2xl p-10 md:p-14 backdrop-blur-xl bg-white/10 border border-white/15 shadow-[0_10px_30px_rgba(0,0,0,0.25)]">
-          <h2 className="text-3xl md:text-4xl font-extrabold">Candidatura — Early Access</h2>
-          <p className="mt-4 text-white/70">
+        {/* FORM — sólido, sem radius/blur */}
+        <div className="p-8 md:p-12 bg-[#151515] border border-[#6c6c6c] rounded-none">
+          <h2
+            className="text-3xl md:text-4xl font-extrabold"
+            style={{ fontFamily: "Goldman, system-ui, sans-serif" }}
+          >
+            Candidatura — Early Access
+          </h2>
+          <p className="mt-3 text-[#fbfbfb]/75">
             Diz quem és e por que razão deves entrar no programa.
           </p>
 
           <form onSubmit={onSubmit} className="mt-8 grid md:grid-cols-2 gap-8" noValidate>
             {/* Honeypot */}
-            <input type="text" name="website" tabIndex={-1} autoComplete="off" className="hidden" aria-hidden="true" />
+            <input
+              type="text"
+              name="website"
+              tabIndex={-1}
+              autoComplete="off"
+              className="sr-only"
+              aria-hidden="true"
+              style={{ position: "absolute", left: "-9999px" }}
+            />
 
             {/* Nome */}
             <div>
-              <label htmlFor="nome" className="block text-sm mb-2">
-                Nome
-              </label>
+              <label htmlFor="nome" className="block text-sm mb-2">Nome</label>
               <input
                 id="nome"
                 name="nome"
                 required
                 placeholder="O teu nome"
                 autoComplete="name"
-                className={`w-full px-5 py-4 rounded-lg bg-black/30 border border-white/15 ${theme.ring}`}
+                className={`w-full px-5 py-4 bg-[#151515] border border-[#6c6c6c] placeholder-white/40 text-[#fbfbfb] rounded-none ${ring}`}
               />
             </div>
 
             {/* E-mail */}
             <div>
-              <label htmlFor="email" className="block text-sm mb-2">
-                E-mail
-              </label>
+              <label htmlFor="email" className="block text-sm mb-2">E-mail</label>
               <input
                 id="email"
                 name="email"
@@ -231,65 +183,9 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({ className = "" }) => 
                 required
                 placeholder="o.teu@email.pt"
                 autoComplete="email"
-                className={`w-full px-5 py-4 rounded-lg bg-black/30 border border-white/15 ${theme.ring}`}
+                inputMode="email"
+                className={`w-full px-5 py-4 bg-[#151515] border border-[#6c6c6c] placeholder-white/40 text-[#fbfbfb] rounded-none ${ring}`}
               />
-            </div>
-
-            {/* Discord ID + validar */}
-            <div className="md:col-span-2">
-              <label htmlFor="discordId" className="block text-sm mb-2">
-                Discord ID
-              </label>
-              <div className="flex gap-3">
-                <input
-                  id="discordId"
-                  name="discordId"
-                  placeholder="Ex.: 123456789012345678"
-                  autoComplete="off"
-                  value={discordId}
-                  onChange={(e) => setDiscordId(e.target.value)}
-                  className={`w-full px-5 py-4 rounded-lg bg-black/30 border border-white/15 ${theme.ring}`}
-                />
-                <button
-                  type="button"
-                  onClick={validateDiscord}
-                  disabled={discordLoading || !isSnowflake(discordId)}
-                  className={`px-5 py-4 rounded-xl font-semibold bg-white/15 hover:bg-white/25 border border-white/15 transition ${theme.ring} disabled:opacity-60`}
-                >
-                  {discordLoading ? "A validar..." : "Validar Discord"}
-                </button>
-              </div>
-
-              {discordInfo && (
-                <div className="mt-4 flex items-center gap-4 p-4 rounded-xl bg-black/30 border border-white/15">
-                  {discordInfo.avatar_url ? (
-                    <img src={discordInfo.avatar_url} alt="Avatar" className="w-12 h-12 rounded-full" />
-                  ) : (
-                    <div className="w-12 h-12 rounded-full bg-white/10" />
-                  )}
-                  <div className="flex flex-col">
-                    <span className="font-semibold">
-                      {discordInfo.global_name || discordInfo.username}
-                    </span>
-                    <span className="text-white/70 text-sm">@{discordInfo.username}</span>
-                    <span className="text-white/40 text-xs">
-                      ID: {discordInfo.id}
-                      {discordCreatedDate ? ` • criado em ${discordCreatedDate}` : ""}
-                    </span>
-                  </div>
-                  <div className="ml-auto">
-                    {discordVerified ? (
-                      <span className="px-3 py-1 text-xs rounded-full bg-green-500/20 text-green-300 border border-green-400/30">
-                        Autenticado
-                      </span>
-                    ) : (
-                      <span className="px-3 py-1 text-xs rounded-full bg-yellow-500/20 text-yellow-300 border border-yellow-400/30">
-                        Por validar
-                      </span>
-                    )}
-                  </div>
-                </div>
-              )}
             </div>
 
             {/* Nome da personagem */}
@@ -303,7 +199,7 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({ className = "" }) => 
                 placeholder="Ex.: Miguel “Rafa” Santos"
                 required
                 autoComplete="off"
-                className={`w-full px-5 py-4 rounded-lg bg-black/30 border border-white/15 ${theme.ring}`}
+                className={`w-full px-5 py-4 bg-[#151515] border border-[#6c6c6c] placeholder-white/40 text-[#fbfbfb] rounded-none ${ring}`}
               />
             </div>
 
@@ -318,26 +214,27 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({ className = "" }) => 
                 required
                 rows={6}
                 placeholder="Explica em poucas linhas a tua motivação."
-                className={`w-full px-5 py-4 rounded-lg bg-black/30 border border-white/15 resize-y ${theme.ring}`}
+                className={`w-full px-5 py-4 bg-[#151515] border border-[#6c6c6c] text-[#fbfbfb] placeholder-white/40 resize-y rounded-none ${ring}`}
               />
             </div>
 
-            {/* Botões */}
+            {/* Ações */}
             <div className="md:col-span-2 flex flex-wrap gap-4">
               <button
                 type="submit"
-                disabled={loading || !discordVerified}
-                className={`px-6 py-4 rounded-xl font-semibold bg-red-500 text-black hover:brightness-95 transition ${theme.ring} disabled:opacity-60 disabled:cursor-not-allowed`}
-                title={!discordVerified ? "Valida primeiro o Discord" : "Enviar candidatura"}
+                disabled={loading}
+                className={`px-6 py-4 font-semibold bg-[#e53e30] text-[#151515] hover:brightness-95 transition rounded-none ${ring} disabled:opacity-60 disabled:cursor-not-allowed`}
+                aria-busy={loading}
               >
-                {loading ? "A enviar..." : "Enviar candidatura"}
+                {loading ? (
+                  <span className="inline-flex items-center gap-2">
+                    <img src="/spinner.svg" alt="" className="w-4 h-4" />
+                    A enviar…
+                  </span>
+                ) : (
+                  "Enviar candidatura"
+                )}
               </button>
-              <a
-                href="#home"
-                className={`px-6 py-4 rounded-xl font-semibold bg-white/15 hover:bg-white/25 border border-white/15 transition ${theme.ring}`}
-              >
-                Voltar ao topo
-              </a>
             </div>
           </form>
         </div>
