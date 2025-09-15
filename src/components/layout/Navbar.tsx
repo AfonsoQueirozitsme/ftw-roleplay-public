@@ -122,7 +122,7 @@ const Navbar: React.FC = () => {
           href={isHome ? "#candidatura" : "/#candidatura"}
           className={`px-6 py-3 rounded-xl font-semibold bg-red-500 text-black hover:brightness-95 transition shadow-md ${theme.ring}`}
         >
-          Early Access
+          Login
         </a>
       </nav>
     </div>
