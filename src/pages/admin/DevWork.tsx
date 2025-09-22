@@ -1,8 +1,6 @@
 // src/admin/DevWork.tsx
-// Board multi-coluna com scroll horizontal, modos de agrupamento (Estado / Atribuído / Prioridade),
-// regras: Head Dev controla tudo; só Head atribui; Dev só vê as suas tarefas;
-// Clock in/renew/stop apenas nas tarefas atribuídas (ou se fores Head).
-// Drawer com detalhes/edição. Som modular + toasts + debug opcional.
+// Board melhorado: scroll horizontal só no board, clock com cache local, picker de utilizadores (Edge Function),
+// visual mais gamificado (cores, badges, snap scroll), UX fluída.
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
@@ -11,19 +9,17 @@ import {
   getMyActiveSession, clockStart, clockRenew, clockStop,
   type DevTask, type Session
 } from "@/lib/api/dev";
+import { listStaffUsers, type StaffUser } from "@/lib/api/dev";
 import { sound } from "@/lib/sound";
 
 const cx = (...c:(string|false|null|undefined)[])=>c.filter(Boolean).join(" ");
 
-type UserMini = { id: string; name: string };
-type Assignee = { user_id: string };
-
 const STATUSES = [
-  { key: "backlog", label: "Backlog" },
-  { key: "in_progress", label: "Em curso" },
-  { key: "blocked", label: "Bloqueado" },
-  { key: "review", label: "Revisão" },
-  { key: "done", label: "Concluído" },
+  { key: "backlog", label: "Backlog", emoji: "📝" },
+  { key: "in_progress", label: "Em curso", emoji: "🚧" },
+  { key: "blocked", label: "Bloqueado", emoji: "⛔" },
+  { key: "review", label: "Revisão", emoji: "🔎" },
+  { key: "done", label: "Concluído", emoji: "✅" },
 ] as const;
 const PRIORITIES: Array<DevTask["priority"]> = ["low","normal","high","urgent"];
 
@@ -42,23 +38,12 @@ function useIsHead() {
   }, []);
   return isHead;
 }
-
-type LogEntry = { ts: string; level: "info"|"warn"|"error"; where: string; msg: string; extra?: any };
-function useLogs() {
-  const [logs, setLogs] = useState<LogEntry[]>([]);
-  function push(level: LogEntry["level"], where: string, msg: string, extra?: any) {
-    const e: LogEntry = { ts: new Date().toISOString(), level, where, msg, extra };
-    setLogs(l => [e, ...l].slice(0, 200));
-    const fn = level === "error" ? console.error : level === "warn" ? console.warn : console.info;
-    fn(`[${where}] ${msg}`, extra ?? "");
-  }
-  return { logs, push };
-}
+type Assignee = { user_id: string };
 
 function useToasts() {
   const [toasts, setToasts] = useState<{ id:number; kind:"ok"|"err"|"info"; text:string }[]>([]);
   const seq = useRef(1);
-  function show(kind: "ok"|"err"|"info", text: string, ms = 2500) {
+  function show(kind: "ok"|"err"|"info", text: string, ms = 2400) {
     const id = seq.current++;
     setToasts(t => [...t, { id, kind, text }]);
     setTimeout(() => setToasts(t => t.filter(x => x.id !== id)), ms);
@@ -81,43 +66,85 @@ function Toasts({ items }:{items:{id:number;kind:"ok"|"err"|"info";text:string}[
   );
 }
 
-/* ——— Helpers ——— */
-const myName = (s?: string|null) => (s?.split("@")[0] ?? "—");
 const initials = (s?: string|null) =>
   (s?.trim().split(/[^\p{L}\p{N}]+/u).filter(Boolean).slice(0,2).map(x=>x[0]).join("") || "??").toUpperCase();
+const shortName = (s?: string|null) => (s?.includes("@") ? s.split("@")[0] : (s ?? "—"));
+
+/* ——— User Picker (para Head) ——— */
+function useDebounce<T>(val:T, ms=250) {
+  const [v, setV] = useState(val);
+  useEffect(()=>{ const id=setTimeout(()=>setV(val), ms); return ()=>clearTimeout(id); }, [val, ms]);
+  return v;
+}
+function UserPicker({
+  value, onToggle, myself,
+}:{
+  value: { id: string; name: string }[];
+  onToggle: (u: StaffUser, has: boolean)=>Promise<void>|void;
+  myself?: string|null;
+}) {
+  const [q, setQ] = useState("");
+  const dQ = useDebounce(q, 250);
+  const [opts, setOpts] = useState<StaffUser[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    let live = true;
+    (async () => {
+      setLoading(true);
+      try {
+        const rows = await listStaffUsers(dQ, 100);
+        if (!live) return;
+        setOpts(rows);
+      } finally { if (live) setLoading(false); }
+    })();
+    return () => { live=false; };
+  }, [dQ]);
+
+  return (
+    <div className="rounded-xl border border-white/10 p-2 bg-white/5">
+      <div className="flex items-center gap-2">
+        <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Procurar utilizadores…"
+               className="flex-1 rounded-lg bg-black/30 border border-white/10 px-2 py-1 outline-none text-sm" />
+        {loading ? <Spinner/> : <span className="text-xs text-white/50">{opts.length}</span>}
+      </div>
+      <div className="mt-2 max-h-48 overflow-auto space-y-1">
+        {opts.map(u => {
+          const has = value.some(v => v.id === u.id);
+          const disabled = false; // (podias impedir tirar a si próprio, etc)
+          return (
+            <button key={u.id} disabled={disabled}
+              onClick={()=>onToggle(u, has)}
+              className={cx("w-full text-left px-2 py-1 rounded-lg text-sm flex items-center gap-2",
+                has ? "bg-white text-black" : "bg-white/10 hover:bg-white/15",
+                disabled && "opacity-50 cursor-not-allowed"
+              )}>
+              <div className="h-6 w-6 rounded-full bg-white/10 grid place-items-center text-[10px]">
+                {initials(u.name || u.email || u.id)}
+              </div>
+              <div className="truncate">{shortName(u.name || u.email) }</div>
+              {myself===u.id && <span className="ml-auto text-[10px] opacity-60">tu</span>}
+            </button>
+          );
+        })}
+        {opts.length===0 && !loading && <div className="text-xs text-white/50 px-1 py-2">Sem resultados.</div>}
+      </div>
+    </div>
+  );
+}
 
 /* ——— Componente principal ——— */
 export default function DevWork() {
   const isHead = useIsHead();
-  const { logs, push } = useLogs();
   const { toasts, show } = useToasts();
 
-  // sessão + identidade
+  // identidade
   const [uid, setUid] = useState<string|null>(null);
   const [email, setEmail] = useState<string|null>(null);
   useEffect(() => { supabase.auth.getUser().then(({ data }) => {
     setUid(data.user?.id ?? null);
     setEmail(data.user?.email ?? null);
   }); }, []);
-
-  // utilizadores atribuíveis (apenas para Head)
-  const [users, setUsers] = useState<UserMini[]>([]);
-  useEffect(() => {
-    (async () => {
-      // tenta profiles → se falhar, cai para staff_perms (só id)
-      try {
-        const { data, error } = await supabase.from("profiles").select("user_id, display_name").limit(500);
-        if (!error && data) {
-          setUsers(data.map((r:any)=>({ id:r.user_id, name: r.display_name || r.user_id.slice(0,6) })));
-          return;
-        }
-      } catch {}
-      try {
-        const { data } = await supabase.from("staff_perms").select("user_id").limit(500);
-        setUsers((data ?? []).map((r:any)=>({ id:r.user_id, name: r.user_id.slice(0,6) })));
-      } catch { setUsers([]); }
-    })();
-  }, []);
 
   // tarefas
   const [tasks, setTasks] = useState<DevTask[]>([]);
@@ -126,99 +153,68 @@ export default function DevWork() {
   const [q, setQ] = useState("");
   const [groupBy, setGroupBy] = useState<"status"|"assignee"|"priority">("status");
 
-  async function refreshTasks(tag="refreshTasks") {
+  async function refreshTasks() {
     setLoadingTasks(true); setErr(null);
-    const t0 = performance.now();
     try {
       const res = await listTasks();
-      let list = res.data;
-      // Dev (não Head) só vê o que lhe está atribuído
-      if (!isHead && uid) {
-        list = list.filter(t => (t.dev_task_assignees ?? []).some((a:Assignee)=>a.user_id===uid));
-      }
-      setTasks(list);
-      push("info", tag, "tarefas carregadas", { count: list.length, ms: Math.round(performance.now()-t0) });
+      let t = res.data;
+      // dev normal só vê as suas
+      if (!isHead && uid) t = t.filter(T => (T.dev_task_assignees ?? []).some((a:Assignee)=>a.user_id===uid));
+      setTasks(t);
     } catch (e:any) {
       setErr(e?.message ?? "Falha a carregar tarefas");
-      push("error", tag, "falha a carregar", e);
-    } finally {
-      setLoadingTasks(false);
-    }
+    } finally { setLoadingTasks(false); }
   }
   useEffect(() => { refreshTasks(); }, [isHead, uid]);
 
-  // esforço por tarefa (view dev_task_effort)
+  // esforço (view)
   type EffortRow = { task_id: string; user_id: string; minutes_total: number };
   const [effort, setEffort] = useState<Record<string, { totalMin: number; myMin: number }>>({});
   useEffect(() => {
     (async () => {
       if (tasks.length === 0) { setEffort({}); return; }
       const ids = tasks.map(t => t.id);
-      const { data, error } = await supabase.from("dev_task_effort").select("*").in("task_id", ids);
-      if (error) { setEffort({}); return; }
-      const byTask: Record<string, { totalMin: number; myMin: number }> = {};
-      (data as EffortRow[]).forEach(r => {
-        byTask[r.task_id] ||= { totalMin: 0, myMin: 0 };
-        byTask[r.task_id].totalMin += r.minutes_total;
-        if (r.user_id === uid) byTask[r.task_id].myMin += r.minutes_total;
+      const { data } = await supabase.from("dev_task_effort").select("*").in("task_id", ids);
+      const by: Record<string, { totalMin: number; myMin: number }> = {};
+      (data as EffortRow[] ?? []).forEach(r => {
+        by[r.task_id] ||= { totalMin: 0, myMin: 0 };
+        by[r.task_id].totalMin += r.minutes_total;
+        if (r.user_id === uid) by[r.task_id].myMin += r.minutes_total;
       });
-      setEffort(byTask);
+      setEffort(by);
     })();
   }, [tasks, uid]);
 
-  // filtro por texto
-  const visibleTasks = useMemo(() => {
+  // filtro texto
+  const visible = useMemo(() => {
     const s = q.trim().toLowerCase();
     if (!s) return tasks;
-    return tasks.filter(t =>
-      t.title.toLowerCase().includes(s) ||
-      (t.description ?? "").toLowerCase().includes(s)
-    );
+    return tasks.filter(t => t.title.toLowerCase().includes(s) || (t.description ?? "").toLowerCase().includes(s));
   }, [tasks, q]);
 
-  // agrupamentos → colunas
-  type Col = { key: string; title: string; filter: (t:DevTask)=>boolean };
+  // colunas
+  type Col = { key: string; title: string; emoji?: string; filter: (t:DevTask)=>boolean };
+  const [allUsers, setAllUsers] = useState<StaffUser[]>([]);
+  useEffect(() => { if (isHead) listStaffUsers("",200).then(setAllUsers).catch(()=>{}); }, [isHead]);
   const columns: Col[] = useMemo(() => {
     if (groupBy === "status") {
-      return STATUSES.map(s => ({
-        key: `status:${s.key}`,
-        title: s.label,
-        filter: (t:DevTask) => t.status === s.key,
-      }));
+      return STATUSES.map(s => ({ key:`st:${s.key}`, title:s.label, emoji:s.emoji, filter: (t)=>t.status===s.key }));
     }
     if (groupBy === "priority") {
-      return PRIORITIES.map(p => ({
-        key: `prio:${p}`,
-        title: `Prioridade: ${p}`,
-        filter: (t:DevTask) => (t.priority ?? "normal") === p,
-      }));
+      return PRIORITIES.map(p => ({ key:`pr:${p}`, title:`Prioridade: ${p}`, filter:(t)=> (t.priority??"normal")===p }));
     }
-    // groupBy assignee
+    // assignee
     if (isHead) {
-      // Head: todas as pessoas + “Sem atribuição”
-      const cols: Col[] = [
-        { key: "ass:none", title: "Sem atribuição", filter: (t:DevTask) => (t.dev_task_assignees ?? []).length === 0 },
-        ...users.map(u => ({
-          key: `ass:${u.id}`,
-          title: myName(u.name),
-          filter: (t:DevTask) => (t.dev_task_assignees ?? []).some((a:Assignee)=>a.user_id===u.id),
-        })),
-      ];
+      const cols: Col[] = [{ key:"ass:none", title:"Sem atribuição", filter:(t)=> (t.dev_task_assignees??[]).length===0 }];
+      for (const u of allUsers) {
+        cols.push({ key:`ass:${u.id}`, title: shortName(u.name||u.email)||u.id.slice(0,6), filter:(t)=> (t.dev_task_assignees??[]).some(a=>a.user_id===u.id) });
+      }
       return cols;
     }
-    // Dev: só a sua coluna
-    return [{
-      key: `ass:${uid ?? "me"}`,
-      title: "As minhas tarefas",
-      filter: (t:DevTask) => (t.dev_task_assignees ?? []).some((a:Assignee)=>a.user_id===uid),
-    }];
-  }, [groupBy, isHead, users, uid]);
+    return [{ key:`ass:me`, title:"As minhas tarefas", filter:(t)=> (t.dev_task_assignees??[]).some(a=>a.user_id===uid) }];
+  }, [groupBy, isHead, allUsers, uid]);
 
-  // estado do drawer
-  const [openId, setOpenId] = useState<string|null>(null);
-  const openTask = visibleTasks.find(t => t.id === openId) || null;
-
-  // criação de tarefa (só Head)
+  // criação (Head)
   const [newOpen, setNewOpen] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [newDesc, setNewDesc] = useState("");
@@ -233,50 +229,100 @@ export default function DevWork() {
     } catch (e:any) { sound.play("error"); show("err", e?.message ?? "Falha a criar"); }
   }
 
-  // ——— Clock ———
+  // drawer
+  const [openId, setOpenId] = useState<string|null>(null);
+  const openTask = visible.find(t => t.id === openId) || null;
+
+  // CLOCK ——— persistência local
   const [session, setSession] = useState<Session|null>(null);
-  const [report, setReport] = useState("");
-  const [forecast, setForecast] = useState("");
+  const [draftReport, setDraftReport] = useState("");
+  const [draftForecast, setDraftForecast] = useState("");
   const [tick, setTick] = useState(0);
+  const [reconciling, setReconciling] = useState(false);
+
+  // load from server + cache
+  useEffect(() => {
+    let live = true;
+    (async () => {
+      const local = localStorage.getItem("dw:session");
+      const localObj: Session|undefined = local ? JSON.parse(local) : undefined;
+
+      const r = await getMyActiveSession().catch(()=>({ session:null }));
+      if (!live) return;
+
+      if (r.session) {
+        setSession(r.session);
+        localStorage.setItem("dw:session", JSON.stringify(r.session));
+        // drafts for this session
+        const key = `dw:draft:${r.session.id}`;
+        const d = JSON.parse(localStorage.getItem(key) || "{}");
+        setDraftReport(d.report ?? "");
+        setDraftForecast(d.forecast ?? "");
+      } else if (localObj?.id) {
+        // mostrar sessão em cache enquanto reconcilia (UI não perde contexto)
+        setSession(localObj);
+        setReconciling(true);
+        const key = `dw:draft:${localObj.id}`;
+        const d = JSON.parse(localStorage.getItem(key) || "{}");
+        setDraftReport(d.report ?? "");
+        setDraftForecast(d.forecast ?? "");
+        // tenta reconciliar durante ~2min
+        let tries = 0;
+        const poll = setInterval(async () => {
+          tries++;
+          const rr = await getMyActiveSession().catch(()=>({ session:null }));
+          if (rr.session || tries > 12) {
+            clearInterval(poll);
+            setReconciling(false);
+            if (rr.session) {
+              setSession(rr.session);
+              localStorage.setItem("dw:session", JSON.stringify(rr.session));
+            } else {
+              // server não tem → limpa cache
+              setSession(null);
+              localStorage.removeItem("dw:session");
+            }
+          }
+        }, 10000);
+      } else {
+        setSession(null);
+      }
+    })();
+    const id = setInterval(()=>setTick(v=>v+1), 1000);
+    return ()=>{ live=false; clearInterval(id); };
+  }, []);
+
+  // persist session + drafts
+  useEffect(() => {
+    if (!session) return;
+    localStorage.setItem("dw:session", JSON.stringify(session));
+  }, [session]);
+  useEffect(() => {
+    const sid = session?.id;
+    if (!sid) return;
+    const key = `dw:draft:${sid}`;
+    const payload = { report: draftReport, forecast: draftForecast };
+    localStorage.setItem(key, JSON.stringify(payload));
+  }, [draftReport, draftForecast, session?.id]);
 
   const nextDue = useMemo(() => {
     if (!session) return null;
     const base = new Date(session.last_renewal_at || session.started_at).getTime();
-    return new Date(base + 30 * 60 * 1000);
+    return new Date(base + 30*60*1000);
   }, [session]);
   const overdueMs = useMemo(() => !nextDue ? 0 : Date.now() - nextDue.getTime(), [nextDue, tick]);
-  useEffect(() => {
-    let mounted = true;
-    (async () => {
-      const r = await getMyActiveSession();
-      if (!mounted) return;
-      setSession(r.session);
-    })();
-    const id = setInterval(() => setTick(v => v+1), 1000);
-    return () => { mounted = false; clearInterval(id); };
-  }, []);
+
   useEffect(() => {
     if (!session || !nextDue) return;
     if (nextDue.getTime() - Date.now() <= 0) sound.play("ping");
   }, [nextDue, tick, session]);
 
-  const autoClosedRef = useRef(false);
-  useEffect(() => {
-    if (!session || autoClosedRef.current) return;
-    if (Math.floor(overdueMs/60000) >= 15) {
-      autoClosedRef.current = true;
-      clockStop(session.id).then(({ session: s }) => {
-        setSession(s); show("info","Sessão terminou por inatividade (>15m)");
-      }).catch(()=>{});
-    }
-  }, [overdueMs, session]);
-
   function pctToNext(): number {
     if (!session || !nextDue) return 0;
     const last = new Date(session.last_renewal_at || session.started_at).getTime();
-    const total = 30 * 60 * 1000;
-    const done = Math.min(total, Math.max(0, Date.now() - last));
-    return Math.round((done / total) * 100);
+    const total = 30*60*1000;
+    const done = Math.min(total, Math.max(0, Date.now()-last));
+    return Math.round((done/total)*100);
   }
 
   async function startClock(task: DevTask) {
@@ -284,15 +330,18 @@ export default function DevWork() {
     if (!isHead && !mine) { show("err","Não podes dar clock: tarefa não é tua"); return; }
     try {
       const { session } = await clockStart(task.id);
-      setSession(session); setReport(""); setForecast(""); sound.play("success"); show("ok","Clock iniciado");
+      setSession(session); setDraftReport(""); setDraftForecast("");
+      localStorage.setItem("dw:session", JSON.stringify(session));
+      sound.play("success"); show("ok","Clock iniciado");
     } catch (e:any) { sound.play("error"); show("err", e?.message ?? "Falha ao iniciar"); }
   }
   async function renewClock() {
     if (!session) return;
     try {
-      const onTime = nextDue ? Math.abs(Date.now() - nextDue.getTime()) <= 2*60*1000 : false;
-      const { session: s } = await clockRenew(session.id, report.trim(), forecast.trim());
-      setSession(s); setReport(""); setForecast("");
+      const onTime = nextDue ? Math.abs(Date.now()-nextDue.getTime()) <= 2*60*1000 : false;
+      const { session: s } = await clockRenew(session.id, draftReport.trim(), draftForecast.trim());
+      setSession(s); setDraftReport(""); setDraftForecast("");
+      localStorage.setItem("dw:session", JSON.stringify(s));
       sound.play(onTime ? "success" : "ping");
       show(onTime ? "ok" : "info", onTime ? "Renovação em tempo" : "Renovação fora da janela");
     } catch (e:any) { sound.play("error"); show("err", e?.message ?? "Falha ao renovar"); }
@@ -300,50 +349,48 @@ export default function DevWork() {
   async function stopClock() {
     if (!session) return;
     try {
-      const { session: s } = await clockStop(session.id, report.trim() ? report.trim() : undefined);
-      setSession(s); setReport(""); setForecast(""); sound.play("success"); show("ok","Clock terminado");
+      const { session: s } = await clockStop(session.id, draftReport.trim() ? draftReport.trim() : undefined);
+      setSession(s);
+      localStorage.setItem("dw:session", JSON.stringify(s));
+      sound.play("success"); show("ok","Clock terminado");
     } catch (e:any) { sound.play("error"); show("err", e?.message ?? "Falha ao terminar"); }
   }
 
   // ——— UI ———
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 overflow-x-hidden">
       <Toasts items={toasts} />
 
-      {/* Topbar */}
-      <header className="flex items-center justify-between gap-2">
-        <div>
-          <h2 className="text-xl font-semibold">Gestão de Trabalho dos Devs</h2>
-          <p className="text-white/60 text-sm">Board com estados, atribuições e prioridades · clock a cada 30 minutos.</p>
-          {email && <div className="text-[11px] text-white/40 mt-1">Sessão: {myName(email)}</div>}
+      {/* GAMIFIED HEADER */}
+      <header className="rounded-3xl border border-white/10 bg-gradient-to-r from-indigo-600/20 via-fuchsia-600/20 to-rose-600/20 p-4 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="h-10 w-10 rounded-xl bg-white text-black grid place-items-center font-bold">
+            {initials(shortName(email))}
+          </div>
+          <div>
+            <div className="font-semibold">{shortName(email)}</div>
+            <div className="text-xs text-white/70">Painel de Trabalho · {isHead ? "Head Dev" : "Dev"}</div>
+          </div>
         </div>
         <div className="flex items-center gap-2">
           <select value={groupBy} onChange={e=>setGroupBy(e.target.value as any)}
                   className="bg-white/10 border border-white/10 rounded-lg px-3 py-2 text-sm outline-none">
-            <option value="status">Agrupar por Estado</option>
-            <option value="assignee">Agrupar por Atribuído</option>
-            <option value="priority">Agrupar por Prioridade</option>
+            <option value="status">Por Estado</option>
+            <option value="assignee">Por Atribuído</option>
+            <option value="priority">Por Prioridade</option>
           </select>
           <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Filtrar…"
                  className="px-3 py-2 rounded-lg bg-white/10 border border-white/10 outline-none text-sm" />
-          {/* Som */}
-          <label className="text-xs flex items-center gap-2 ml-2">
-            <input type="checkbox" defaultChecked={sound.muted} onChange={(e)=>sound.setMuted(e.target.checked)} />
-            Sem som
-          </label>
-          <input aria-label="Volume" type="range" min={0} max={1} step={0.05}
-                 defaultValue={sound.volume} onChange={(e)=>sound.setVolume(Number(e.target.value))}
-                 className="w-24" />
           {isHead && (
-            <button onClick={()=>setNewOpen(true)} className="px-3 py-2 rounded-lg bg-white text-black text-sm">Nova Tarefa</button>
+            <button onClick={()=>setNewOpen(true)} className="px-3 py-2 rounded-lg bg-white text-black text-sm">+ Nova</button>
           )}
         </div>
       </header>
 
-      {/* Clock card */}
+      {/* CLOCK (fixo, não scrolla lateralmente) */}
       <section className="rounded-2xl border border-white/10 bg-white/5 p-4">
         <div className="flex items-center justify-between">
-          <div className="font-semibold">Clock</div>
+          <div className="font-semibold flex items-center gap-2">⏱️ Clock {reconciling && <span className="text-xs text-amber-300">· a reconciliar…</span>}</div>
           {session && (
             <div title="Progresso até à próxima renovação (30m)"
                  className="h-8 w-8 rounded-full"
@@ -371,10 +418,10 @@ export default function DevWork() {
             </div>
             <div>
               <label className="text-xs text-white/60">Relatório (últimos 30 min)</label>
-              <textarea value={report} onChange={e=>setReport(e.target.value)} rows={3}
+              <textarea value={draftReport} onChange={e=>setDraftReport(e.target.value)} rows={3}
                         className="w-full mt-1 rounded-lg bg-black/30 border border-white/10 p-2 outline-none" />
               <label className="text-xs text-white/60 mt-2 block">Previsão (próximos 30 min)</label>
-              <textarea value={forecast} onChange={e=>setForecast(e.target.value)} rows={2}
+              <textarea value={draftForecast} onChange={e=>setDraftForecast(e.target.value)} rows={2}
                         className="w-full mt-1 rounded-lg bg-black/30 border border-white/10 p-2 outline-none" />
               <div className="mt-2 flex items-center gap-2">
                 <button onClick={renewClock} className="px-3 py-2 rounded-lg bg-white text-black text-sm">Renovar</button>
@@ -385,89 +432,99 @@ export default function DevWork() {
         )}
       </section>
 
-      {/* Board: colunas horizontais */}
-      <section className="rounded-2xl border border-white/10 bg-white/5 overflow-x-auto">
-        <div className="min-w-[920px] flex gap-3 p-3">
-          {columns.map(col => {
-            const items = visibleTasks.filter(col.filter);
-            return (
-              <div key={col.key} className="w-[min(360px,88vw)] shrink-0 rounded-2xl border border-white/10 bg-white/[0.03] p-3">
-                <div className="flex items-center justify-between">
-                  <h4 className="font-semibold">{col.title}</h4>
-                  <span className="text-xs text-white/60">{items.length}</span>
-                </div>
-                <div className="mt-2 space-y-2">
-                  {items.map(t => {
-                    const mine = (t.dev_task_assignees ?? []).some((a:Assignee)=>a.user_id===uid);
-                    const eff = effort[t.id] || { totalMin: 0, myMin: 0 };
-                    const totalH = Math.round((eff.totalMin/60) * 100) / 100;
-                    const myH = Math.round((eff.myMin/60) * 100) / 100;
-                    const maxH = Number(t.max_hours ?? 0);
-                    const pct = maxH > 0 ? Math.min(100, Math.round((totalH / maxH) * 100)) : 0;
-                    const over = maxH > 0 && totalH > maxH;
+      {/* BOARD — scroll horizontal APENAS aqui */}
+      <section className="rounded-2xl border border-white/10 bg-white/5">
+        <div className="overflow-x-auto">
+          <div className="min-w-[980px] flex gap-3 p-3 snap-x snap-mandatory">
+            {columns.map(col => {
+              const items = visible.filter(col.filter);
+              return (
+                <div key={col.key}
+                     className="w-[320px] md:w-[360px] shrink-0 snap-start rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-semibold flex items-center gap-2">
+                      <span>{("emoji" in col ? (col as any).emoji : undefined) ?? "📦"}</span>{col.title}
+                    </h4>
+                    <span className="text-xs text-white/60">{items.length}</span>
+                  </div>
+                  <div className="mt-2 space-y-2">
+                    {items.map(t => {
+                      const mine = (t.dev_task_assignees ?? []).some((a:Assignee)=>a.user_id===uid);
+                      const eff = effort[t.id] || { totalMin: 0, myMin: 0 };
+                      const totalH = Math.round((eff.totalMin/60) * 100) / 100;
+                      const myH = Math.round((eff.myMin/60) * 100) / 100;
+                      const maxH = Number(t.max_hours ?? 0);
+                      const pct = maxH > 0 ? Math.min(100, Math.round((totalH / maxH) * 100)) : 0;
+                      const over = maxH > 0 && totalH > maxH;
 
-                    return (
-                      <article key={t.id} className="rounded-xl border border-white/10 bg-white/5 p-3">
-                        <button className="text-left w-full" onClick={()=>setOpenId(t.id)} title="Abrir detalhes">
-                          <div className="font-medium truncate">{t.title}</div>
-                          {t.description && <div className="text-xs text-white/60 mt-1 line-clamp-2">{t.description}</div>}
-                        </button>
-                        {/* Progresso vs max_hours */}
-                        {maxH > 0 && (
-                          <div className="mt-2">
-                            <div className="w-full h-2 rounded bg-white/10 overflow-hidden">
-                              <div className={cx("h-full", over ? "bg-rose-300" : "bg-white/70")} style={{ width: `${pct}%` }} />
-                            </div>
-                            <div className="mt-1 text-[11px] text-white/70">
-                              {totalH} / {maxH} h {over && <span className="ml-1 text-rose-300 font-medium">• excedido</span>}
-                              {myH > 0 && <span className="ml-2 opacity-80">(tu: {myH} h)</span>}
-                            </div>
-                          </div>
-                        )}
-                        <div className="mt-2 flex items-center gap-2 flex-wrap text-[11px]">
-                          <span className="px-2 py-0.5 rounded-full bg-white/10">prio: {t.priority ?? "normal"}</span>
-                          <span className="px-2 py-0.5 rounded-full bg-white/10">estado: {t.status}</span>
-                          {mine && <span className="px-2 py-0.5 rounded-full bg-white/10">👤 tua</span>}
-                          {t.status === "done" && <span className="px-2 py-0.5 rounded-full bg-emerald-300/20 text-emerald-200">✔ concluída</span>}
-                        </div>
-                        <div className="mt-2 flex items-center gap-2">
-                          <button
-                            onClick={()=>startClock(t)}
-                            disabled={(!isHead && !mine) || t.status==="done"}
-                            className={cx("px-2 py-1 rounded text-xs",
-                              ((!isHead && !mine) || t.status==="done") ? "bg-white/5 text-white/40 cursor-not-allowed"
-                                                                        : "bg-white text-black hover:opacity-90")}
-                          >
-                            Clock
+                      return (
+                        <article key={t.id}
+                                 className="rounded-xl border border-white/10 bg-gradient-to-br from-white/10 to-white/[0.02] p-3 hover:border-white/20 transition">
+                          <button className="text-left w-full" onClick={()=>setOpenId(t.id)} title="Abrir detalhes">
+                            <div className="font-medium truncate">{t.title}</div>
+                            {t.description && <div className="text-xs text-white/60 mt-1 line-clamp-2">{t.description}</div>}
                           </button>
-                          {isHead && (
-                            <button
-                              onClick={async ()=>{
-                                const ns = prompt("Novo estado: backlog|in_progress|blocked|review|done", t.status) as DevTask["status"]|null;
-                                if (!ns) return;
-                                try { await updateTask(t.id, { status: ns }); await refreshTasks("moveStatus"); sound.play("success"); show("ok", "Estado atualizado"); }
-                                catch(e:any){ sound.play("error"); show("err", e?.message ?? "Falha a mover"); }
-                              }}
-                              className="px-2 py-1 rounded bg-white/10 text-xs border border-white/10"
-                            >Mover</button>
+
+                          {maxH > 0 && (
+                            <div className="mt-2">
+                              <div className="w-full h-2 rounded bg-white/10 overflow-hidden">
+                                <div className={cx("h-full", over ? "bg-rose-300" : "bg-white")}
+                                     style={{ width: `${pct}%` }} />
+                              </div>
+                              <div className="mt-1 text-[11px] text-white/70">
+                                {totalH} / {maxH} h
+                                {myH > 0 && <span className="ml-2 opacity-80">(tu: {myH} h)</span>}
+                                {over && <span className="ml-2 text-rose-300 font-medium">• excedido</span>}
+                              </div>
+                            </div>
                           )}
-                        </div>
-                      </article>
-                    );
-                  })}
-                  {items.length===0 && <div className="text-xs text-white/60">Sem tarefas.</div>}
+
+                          <div className="mt-2 flex items-center gap-2 flex-wrap text-[11px]">
+                            <span className="px-2 py-0.5 rounded-full bg-white/10">prio: {t.priority ?? "normal"}</span>
+                            <span className="px-2 py-0.5 rounded-full bg-white/10">estado: {t.status}</span>
+                            {mine && <span className="px-2 py-0.5 rounded-full bg-indigo-400/20 text-indigo-100">👤 tua</span>}
+                            {t.status === "done" && <span className="px-2 py-0.5 rounded-full bg-emerald-400/20 text-emerald-100">✔ concluída</span>}
+                          </div>
+
+                          <div className="mt-2 flex items-center gap-2">
+                            <button
+                              onClick={()=>startClock(t)}
+                              disabled={(!isHead && !mine) || t.status==="done"}
+                              className={cx("px-2 py-1 rounded text-xs",
+                                ((!isHead && !mine) || t.status==="done") ? "bg-white/5 text-white/40 cursor-not-allowed"
+                                                                          : "bg-white text-black hover:opacity-90")}
+                            >
+                              Clock
+                            </button>
+                            {isHead && (
+                              <button
+                                onClick={async ()=>{
+                                  const ns = prompt("Novo estado: backlog|in_progress|blocked|review|done", t.status) as DevTask["status"]|null;
+                                  if (!ns) return;
+                                  try { await updateTask(t.id, { status: ns }); await refreshTasks(); sound.play("success"); show("ok","Estado atualizado"); }
+                                  catch(e:any){ sound.play("error"); show("err", e?.message ?? "Falha a mover"); }
+                                }}
+                                className="px-2 py-1 rounded bg-white/10 text-xs border border-white/10"
+                              >Mover</button>
+                            )}
+                          </div>
+                        </article>
+                      );
+                    })}
+                    {items.length===0 && <div className="text-xs text-white/60">Sem tarefas.</div>}
+                  </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
       </section>
 
-      {/* Drawer Detalhes */}
+      {/* Drawer Detalhes (com atribuição Head + ações) */}
       {openTask && (
         <>
           <div className="fixed inset-0 z-40 bg-black/40" onClick={()=>setOpenId(null)} />
-          <aside className="fixed right-0 top-0 bottom-0 z-50 w-[min(92vw,560px)] bg-[#0b0b0c] border-l border-white/10 p-4 overflow-y-auto">
+          <aside className="fixed right-0 top-0 bottom-0 z-50 w-[min(92vw,620px)] bg-[#0b0b0c] border-l border-white/10 p-4 overflow-y-auto">
             <div className="flex items-center justify-between">
               <h3 className="font-semibold">Tarefa</h3>
               <button onClick={()=>setOpenId(null)} className="px-2 py-1 rounded bg-white/10">Fechar</button>
@@ -480,7 +537,7 @@ export default function DevWork() {
                   onBlur={async (e)=>{
                     const val = e.target.value.trim();
                     if (val && val !== openTask.title) {
-                      try { await updateTask(openTask.id, { title: val }); sound.play("success"); show("ok","Título atualizado"); await refreshTasks("updTitle"); }
+                      try { await updateTask(openTask.id, { title: val }); sound.play("success"); show("ok","Título atualizado"); await refreshTasks(); }
                       catch(e:any){ sound.play("error"); show("err", e?.message ?? "Falha a atualizar título"); }
                     }
                   }}
@@ -493,21 +550,20 @@ export default function DevWork() {
                   defaultValue={openTask.description ?? ""}
                   rows={4}
                   onBlur={async (e)=>{
-                    try { await updateTask(openTask.id, { description: e.target.value }); sound.play("success"); show("ok","Descrição atualizada"); await refreshTasks("updDesc"); }
+                    try { await updateTask(openTask.id, { description: e.target.value }); sound.play("success"); show("ok","Descrição atualizada"); await refreshTasks(); }
                     catch(e:any){ sound.play("error"); show("err", e?.message ?? "Falha a atualizar descrição"); }
                   }}
                   className="w-full rounded-lg bg-black/30 border border-white/10 p-2 outline-none"
                 />
               </div>
 
-              {/* Estado & Prioridade */}
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-3 gap-2">
                 <div>
                   <label className="text-xs text-white/60">Estado</label>
                   <select
                     defaultValue={openTask.status}
                     onChange={async (e)=>{
-                      try { await updateTask(openTask.id, { status: e.target.value as DevTask["status"] }); sound.play("success"); show("ok","Estado atualizado"); await refreshTasks("updStatus"); }
+                      try { await updateTask(openTask.id, { status: e.target.value as DevTask["status"] }); sound.play("success"); show("ok","Estado atualizado"); await refreshTasks(); }
                       catch(e:any){ sound.play("error"); show("err", e?.message ?? "Falha a atualizar estado"); }
                     }}
                     className="w-full mt-1 rounded-lg bg-black/30 border border-white/10 p-2"
@@ -520,7 +576,7 @@ export default function DevWork() {
                   <select
                     defaultValue={openTask.priority ?? "normal"}
                     onChange={async (e)=>{
-                      try { await updateTask(openTask.id, { priority: e.target.value as DevTask["priority"] }); sound.play("success"); show("ok","Prioridade atualizada"); await refreshTasks("updPrio"); }
+                      try { await updateTask(openTask.id, { priority: e.target.value as DevTask["priority"] }); sound.play("success"); show("ok","Prioridade atualizada"); await refreshTasks(); }
                       catch(e:any){ sound.play("error"); show("err", e?.message ?? "Falha a atualizar prioridade"); }
                     }}
                     className="w-full mt-1 rounded-lg bg-black/30 border border-white/10 p-2"
@@ -528,63 +584,48 @@ export default function DevWork() {
                     {PRIORITIES.map(p => <option key={p} value={p}>{p}</option>)}
                   </select>
                 </div>
+                <div>
+                  <label className="text-xs text-white/60">Horas máx</label>
+                  <input
+                    type="number" min={0} step={0.5} defaultValue={Number(openTask.max_hours ?? 0)}
+                    onBlur={async (e)=>{
+                      const v = Number(e.target.value);
+                      if (!Number.isFinite(v)) return;
+                      try { await updateTask(openTask.id, { max_hours: v }); sound.play("success"); show("ok","Horas máx atualizadas"); await refreshTasks(); }
+                      catch(e:any){ sound.play("error"); show("err", e?.message ?? "Falha a atualizar"); }
+                    }}
+                    className="w-full mt-1 rounded-lg bg-black/30 border border-white/10 p-2"
+                  />
+                </div>
               </div>
 
-              {/* Max horas */}
+              {/* Atribuições */}
               <div>
-                <label className="text-xs text-white/60">Horas máx</label>
-                <input
-                  type="number" min={0} step={0.5} defaultValue={Number(openTask.max_hours ?? 0)}
-                  onBlur={async (e)=>{
-                    const v = Number(e.target.value);
-                    if (!Number.isFinite(v)) return;
-                    try { await updateTask(openTask.id, { max_hours: v }); sound.play("success"); show("ok","Horas máx atualizadas"); await refreshTasks("updMax"); }
-                    catch(e:any){ sound.play("error"); show("err", e?.message ?? "Falha a atualizar"); }
-                  }}
-                  className="w-full rounded-lg bg-black/30 border border-white/10 p-2 outline-none"
-                />
-              </div>
-
-              {/* Atribuições (só Head) */}
-              <div>
-                <label className="text-xs text-white/60">Atribuições</label>
+                <label className="text-xs text-white/60 block mb-1">Atribuições</label>
                 {isHead ? (
-                  <div className="mt-1 space-y-2">
-                    <div className="text-xs text-white/60">Seleciona para alternar (adiciona/remove)</div>
-                    <div className="flex flex-wrap gap-2">
-                      {users.map(u => {
-                        const has = (openTask.dev_task_assignees ?? []).some((a:Assignee)=>a.user_id===u.id);
-                        return (
-                          <button
-                            key={u.id}
-                            onClick={async ()=>{
-                              try {
-                                await assignTask(openTask.id, u.id, has ? "remove" : "add");
-                                sound.play("success");
-                                await refreshTasks("assignToggle");
-                              } catch (e:any) { sound.play("error"); show("err","Falha a atribuir"); }
-                            }}
-                            className={cx("px-2 py-1 rounded border text-xs",
-                              has ? "bg-white text-black border-white" : "bg-white/10 border-white/10")
-                            }
-                          >
-                            {myName(u.name)}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
+                  <UserPicker
+                    value={(openTask.dev_task_assignees ?? []).map((a:Assignee)=>({
+                      id: a.user_id,
+                      name: allUsers.find(u=>u.id===a.user_id)?.name || a.user_id
+                    }))}
+                    myself={uid}
+                    onToggle={async (u, has) => {
+                      try {
+                        await assignTask(openTask.id, u.id, has ? "remove" : "add");
+                        sound.play("success");
+                        await refreshTasks();
+                      } catch (e:any) { sound.play("error"); show("err","Falha a atribuir"); }
+                    }}
+                  />
                 ) : (
-                  <div className="mt-1 text-sm">
-                    {(openTask.dev_task_assignees ?? []).length === 0
-                      ? <span className="text-white/60">Sem atribuição</span>
-                      : <div className="flex flex-wrap gap-1">
-                          {(openTask.dev_task_assignees ?? []).map((a:Assignee) => {
-                            const u = users.find(x => x.id === a.user_id);
-                            return <span key={a.user_id} className="px-2 py-0.5 rounded bg-white/10 text-xs">{myName(u?.name ?? a.user_id)}</span>;
-                          })}
-                        </div>
-                    }
+                  <div className="flex flex-wrap gap-1">
+                    {(openTask.dev_task_assignees ?? []).map((a:Assignee) => {
+                      const u = allUsers.find(x => x.id === a.user_id);
+                      return <span key={a.user_id} className="px-2 py-0.5 rounded bg-white/10 text-xs">
+                        {shortName(u?.name || u?.email || a.user_id)}
+                      </span>;
+                    })}
+                    {(openTask.dev_task_assignees ?? []).length===0 && <span className="text-sm text-white/60">Sem atribuição</span>}
                   </div>
                 )}
               </div>
@@ -613,43 +654,7 @@ export default function DevWork() {
         </>
       )}
 
-      {/* Debug opcional */}
-      <section className="rounded-2xl border border-white/10 bg-white/5">
-        <details>
-          <summary className="cursor-pointer px-4 py-2 text-sm text-white/70 hover:text-white">Debug (abrir)</summary>
-          <div className="p-4 grid md:grid-cols-3 gap-3 text-sm">
-            <div className="rounded-xl border border-white/10 p-3">
-              <div className="font-semibold mb-2">Sessão</div>
-              <pre className="text-xs whitespace-pre-wrap break-words opacity-90">{JSON.stringify(session, null, 2)}</pre>
-            </div>
-            <div className="rounded-xl border border-white/10 p-3">
-              <div className="font-semibold mb-2">Timers</div>
-              <div>nextDue: {nextDue?.toISOString() ?? "—"}</div>
-              <div>overdueMs: {overdueMs}</div>
-              <div>pctToNext: {pctToNext()}%</div>
-            </div>
-            <div className="rounded-xl border border-white/10 p-3">
-              <div className="font-semibold mb-2">Logs ({logs.length})</div>
-              <div className="max-h-56 overflow-auto text-xs space-y-2">
-                {logs.slice(0,50).map((l,i)=>(
-                  <div key={i} className={cx("rounded p-2",
-                    l.level==="error" && "bg-rose-500/10",
-                    l.level==="warn" && "bg-amber-500/10",
-                    l.level==="info" && "bg-white/5",
-                  )}>
-                    <div className="opacity-60">{l.ts} • {l.level} • {l.where}</div>
-                    <div>{l.msg}</div>
-                    {l.extra && <pre className="opacity-80 whitespace-pre-wrap break-words">{JSON.stringify(l.extra, null, 2)}</pre>}
-                  </div>
-                ))}
-                {logs.length===0 && <div className="opacity-60">Sem logs.</div>}
-              </div>
-            </div>
-          </div>
-        </details>
-      </section>
-
-      {/* Modal Nova Tarefa (Head) */}
+      {/* Modal Nova Tarefa */}
       {newOpen && isHead && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/60">
           <div className="w-[min(92vw,640px)] rounded-2xl border border-white/10 bg-[#0b0b0c] p-4">
@@ -684,6 +689,9 @@ export default function DevWork() {
           </div>
         </div>
       )}
+
+      {/* Erros */}
+      {err && <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-rose-200">{err}</div>}
     </div>
   );
 }
