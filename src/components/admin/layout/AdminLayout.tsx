@@ -44,7 +44,7 @@ const isGestao = (perms?: Perms | null) => has(perms, "ftw.management.all");
 const ACL: Record<string, string[] | "staff"> = {
   "/admin": "staff", // qualquer staff entra no painel
   "/admin/devleaders": "staff", // qualquer staff entra no painel
-  "/admin/dev": ["group.ftw_dev","ftw.dev.head","ftw.management.all"],     // <-- NOVO
+  "/admin/devwork": ["group.ftw_dev","ftw.dev.head","ftw.management.all"],     // <-- NOVO
   "/admin/players": ["ftw.supervise.basic","ftw.supervise.advanced","ftw.admin.basic","ftw.admin.senior","ftw.admin.head","ftw.management.all"],
   "/admin/txadmin": ["ftw.admin.senior","ftw.admin.head","ftw.management.all"],
   "/admin/candidaturas": ["ftw.support.read","ftw.support.manage","ftw.admin.basic","ftw.management.all"],
@@ -500,7 +500,7 @@ export default function AdminLayout() {
       { to: "/admin/imagens", label: "Imagens", icon: Icon.Image, need: ACL["/admin/imagens"] as string[] },
       { to: "/admin/resources", label: "Recursos", icon: Icon.Image, need: ACL["/admin/resources"] as string[] },
       { to: "/admin/devleaders", label: "Dev Leaders", icon: Icon.Image, need: ACL["/admin/devleaders"] as string[] },
-      { to: "/admin/dev", label: "Dev Work", icon: Icon.Clipboard, need: ACL["/admin/dev"] as string[] },
+      { to: "/admin/devwork", label: "Dev Work", icon: Icon.Clipboard, need: ACL["/admin/dev"] as string[] },
 
     ];
     // Gestão vê tudo; caso contrário, filtra por permissão
