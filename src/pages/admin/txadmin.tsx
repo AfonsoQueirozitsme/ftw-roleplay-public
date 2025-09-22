@@ -7,7 +7,7 @@ import React, { useEffect, useRef, useState } from "react";
  */
 const TXADMIN_URL =
   (import.meta as any)?.env?.VITE_TXADMIN_URL ||
-  "https://txadmin.exemplo.com"; // <- TROCA para o teu domínio
+  "https://playftwrp.ftw.pt:40120"; // <- TROCA para o teu domínio
 
 export default function TxAdmin() {
   const [full, setFull] = useState(false);
