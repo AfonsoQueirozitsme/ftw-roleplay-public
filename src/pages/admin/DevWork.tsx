@@ -1,6 +1,7 @@
 // src/admin/DevWork.tsx
-// Board melhorado: scroll horizontal só no board, clock com cache local, picker de utilizadores (Edge Function),
-// visual mais gamificado (cores, badges, snap scroll), UX fluída.
+// Board melhorado: scroll horizontal só no board, clock com cache local/restore,
+// picker de utilizadores, UI gamificada, drag-and-drop entre estados, quick-select,
+// progress bar do clock e layout que não sai da viewport.
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
@@ -111,13 +112,11 @@ function UserPicker({
       <div className="mt-2 max-h-48 overflow-auto space-y-1">
         {opts.map(u => {
           const has = value.some(v => v.id === u.id);
-          const disabled = false; // (podias impedir tirar a si próprio, etc)
           return (
-            <button key={u.id} disabled={disabled}
+            <button key={u.id}
               onClick={()=>onToggle(u, has)}
               className={cx("w-full text-left px-2 py-1 rounded-lg text-sm flex items-center gap-2",
-                has ? "bg-white text-black" : "bg-white/10 hover:bg-white/15",
-                disabled && "opacity-50 cursor-not-allowed"
+                has ? "bg-white text-black" : "bg-white/10 hover:bg-white/15"
               )}>
               <div className="h-6 w-6 rounded-full bg-white/10 grid place-items-center text-[10px]">
                 {initials(u.name || u.email || u.id)}
@@ -192,7 +191,7 @@ export default function DevWork() {
     return tasks.filter(t => t.title.toLowerCase().includes(s) || (t.description ?? "").toLowerCase().includes(s));
   }, [tasks, q]);
 
-  // colunas
+  // colunas (assignee/status/priority)
   type Col = { key: string; title: string; emoji?: string; filter: (t:DevTask)=>boolean };
   const [allUsers, setAllUsers] = useState<StaffUser[]>([]);
   useEffect(() => { if (isHead) listStaffUsers("",200).then(setAllUsers).catch(()=>{}); }, [isHead]);
@@ -203,7 +202,6 @@ export default function DevWork() {
     if (groupBy === "priority") {
       return PRIORITIES.map(p => ({ key:`pr:${p}`, title:`Prioridade: ${p}`, filter:(t)=> (t.priority??"normal")===p }));
     }
-    // assignee
     if (isHead) {
       const cols: Col[] = [{ key:"ass:none", title:"Sem atribuição", filter:(t)=> (t.dev_task_assignees??[]).length===0 }];
       for (const u of allUsers) {
@@ -253,20 +251,17 @@ export default function DevWork() {
       if (r.session) {
         setSession(r.session);
         localStorage.setItem("dw:session", JSON.stringify(r.session));
-        // drafts for this session
         const key = `dw:draft:${r.session.id}`;
         const d = JSON.parse(localStorage.getItem(key) || "{}");
         setDraftReport(d.report ?? "");
         setDraftForecast(d.forecast ?? "");
       } else if (localObj?.id) {
-        // mostrar sessão em cache enquanto reconcilia (UI não perde contexto)
         setSession(localObj);
         setReconciling(true);
         const key = `dw:draft:${localObj.id}`;
         const d = JSON.parse(localStorage.getItem(key) || "{}");
         setDraftReport(d.report ?? "");
         setDraftForecast(d.forecast ?? "");
-        // tenta reconciliar durante ~2min
         let tries = 0;
         const poll = setInterval(async () => {
           tries++;
@@ -278,7 +273,6 @@ export default function DevWork() {
               setSession(rr.session);
               localStorage.setItem("dw:session", JSON.stringify(rr.session));
             } else {
-              // server não tem → limpa cache
               setSession(null);
               localStorage.removeItem("dw:session");
             }
@@ -292,11 +286,7 @@ export default function DevWork() {
     return ()=>{ live=false; clearInterval(id); };
   }, []);
 
-  // persist session + drafts
-  useEffect(() => {
-    if (!session) return;
-    localStorage.setItem("dw:session", JSON.stringify(session));
-  }, [session]);
+  // persist drafts
   useEffect(() => {
     const sid = session?.id;
     if (!sid) return;
@@ -310,6 +300,12 @@ export default function DevWork() {
     const base = new Date(session.last_renewal_at || session.started_at).getTime();
     return new Date(base + 30*60*1000);
   }, [session]);
+  const totalMs = 30*60*1000;
+  const elapsedMs = useMemo(() => {
+    if (!session) return 0;
+    const base = new Date(session.last_renewal_at || session.started_at).getTime();
+    return Math.min(totalMs, Math.max(0, Date.now() - base));
+  }, [session, tick]);
   const overdueMs = useMemo(() => !nextDue ? 0 : Date.now() - nextDue.getTime(), [nextDue, tick]);
 
   useEffect(() => {
@@ -317,13 +313,10 @@ export default function DevWork() {
     if (nextDue.getTime() - Date.now() <= 0) sound.play("ping");
   }, [nextDue, tick, session]);
 
-  function pctToNext(): number {
-    if (!session || !nextDue) return 0;
-    const last = new Date(session.last_renewal_at || session.started_at).getTime();
-    const total = 30*60*1000;
-    const done = Math.min(total, Math.max(0, Date.now()-last));
-    return Math.round((done/total)*100);
-  }
+  const pctToNext = Math.round((elapsedMs/totalMs)*100);
+  const remainMs = Math.max(0, totalMs - elapsedMs);
+  const mm = String(Math.floor(remainMs/60000)).padStart(2,"0");
+  const ss = String(Math.floor((remainMs%60000)/1000)).padStart(2,"0");
 
   async function startClock(task: DevTask) {
     const mine = (task.dev_task_assignees ?? []).some((a:Assignee)=>a.user_id===uid);
@@ -356,12 +349,71 @@ export default function DevWork() {
     } catch (e:any) { sound.play("error"); show("err", e?.message ?? "Falha ao terminar"); }
   }
 
+  // ——— Drag & Drop (status only) ———
+  const [dragId, setDragId] = useState<string|null>(null);
+  const [dragCol, setDragCol] = useState<string|null>(null);
+  const isStatusGrouping = groupBy === "status";
+  function onDragStart(e: React.DragEvent, id: string) {
+    setDragId(id);
+    e.dataTransfer.setData("text/plain", id);
+    e.dataTransfer.effectAllowed = "move";
+  }
+  function onDragOverCol(e: React.DragEvent, colKey: string) {
+    if (!isStatusGrouping || !dragId) return;
+    e.preventDefault();
+    setDragCol(colKey);
+  }
+  async function onDropCol(e: React.DragEvent, colKey: string) {
+    if (!isStatusGrouping) return;
+    const id = e.dataTransfer.getData("text/plain") || dragId;
+    setDragCol(null); setDragId(null);
+    if (!id) return;
+    const t = tasks.find(x=>x.id===id);
+    if (!t) return;
+    const mine = (t.dev_task_assignees ?? []).some((a:Assignee)=>a.user_id===uid);
+    if (!(isHead || mine)) { show("err","Sem permissão para mover esta tarefa"); return; }
+    const newStatus = colKey.startsWith("st:") ? (colKey.slice(3) as DevTask["status"]) : t.status;
+    if (newStatus === t.status) return;
+    try {
+      await updateTask(t.id, { status: newStatus });
+      setTasks(prev => prev.map(p => p.id===t.id ? { ...p, status: newStatus } : p));
+      sound.play("success"); show("ok","Estado atualizado");
+    } catch (e:any) {
+      sound.play("error"); show("err", e?.message ?? "Falha ao mover");
+    }
+  }
+
+  // quick status select (sem prompt)
+  function QuickStatus({ task }: { task: DevTask }) {
+    const mine = (task.dev_task_assignees ?? []).some((a:Assignee)=>a.user_id===uid);
+    const can = isHead || mine;
+    return (
+      <select
+        aria-label="Alterar estado"
+        disabled={!can}
+        value={task.status}
+        onChange={async (e)=>{
+          const ns = e.target.value as DevTask["status"];
+          try {
+            await updateTask(task.id, { status: ns });
+            setTasks(prev => prev.map(p => p.id===task.id ? { ...p, status: ns } : p));
+            sound.play("success"); show("ok","Estado atualizado");
+          } catch (err:any) { sound.play("error"); show("err", err?.message ?? "Falha ao atualizar estado"); }
+        }}
+        className={cx("px-2 py-1 rounded text-[11px] border",
+          can ? "bg-white/10 border-white/20" : "bg-white/5 text-white/40 cursor-not-allowed")}
+      >
+        {STATUSES.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
+      </select>
+    );
+  }
+
   // ——— UI ———
   return (
-    <div className="space-y-6 overflow-x-hidden">
+    <div className="min-h-screen max-h-screen overflow-hidden flex flex-col gap-4">
       <Toasts items={toasts} />
 
-      {/* GAMIFIED HEADER */}
+      {/* GAMIFIED HEADER (fixo) */}
       <header className="rounded-3xl border border-white/10 bg-gradient-to-r from-indigo-600/20 via-fuchsia-600/20 to-rose-600/20 p-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="h-10 w-10 rounded-xl bg-white text-black grid place-items-center font-bold">
@@ -387,21 +439,33 @@ export default function DevWork() {
         </div>
       </header>
 
-      {/* CLOCK (fixo, não scrolla lateralmente) */}
+      {/* CLOCK (fixo, dentro da viewport, sem scroll horizontal) */}
       <section className="rounded-2xl border border-white/10 bg-white/5 p-4">
         <div className="flex items-center justify-between">
           <div className="font-semibold flex items-center gap-2">⏱️ Clock {reconciling && <span className="text-xs text-amber-300">· a reconciliar…</span>}</div>
           {session && (
-            <div title="Progresso até à próxima renovação (30m)"
-                 className="h-8 w-8 rounded-full"
-                 style={{
-                   background: `conic-gradient(white ${pctToNext()}%, rgba(255,255,255,0.15) ${pctToNext()}%)`,
-                   WebkitMask: "radial-gradient(circle at center, transparent 55%, #000 56%)",
-                   mask: "radial-gradient(circle at center, transparent 55%, #000 56%)",
-                 }}
+            <div
+              title="Progresso até à próxima renovação (30m)"
+              className="h-8 w-8 rounded-full"
+              style={{
+                background: `conic-gradient(white ${pctToNext}%, rgba(255,255,255,0.15) ${pctToNext}%)`,
+                WebkitMask: "radial-gradient(circle at center, transparent 55%, #000 56%)",
+                mask: "radial-gradient(circle at center, transparent 55%, #000 56%)",
+              }}
             />
           )}
         </div>
+
+        {/* Barra linear do clock + tempo restante */}
+        {session && (
+          <div className="mt-3">
+            <div className="w-full h-2 rounded-full bg-white/10 overflow-hidden">
+              <div className="h-full bg-white" style={{ width: `${pctToNext}%` }} />
+            </div>
+            <div className="mt-1 text-xs text-white/70">Faltam: <b>{mm}:{ss}</b></div>
+          </div>
+        )}
+
         {!session ? (
           <div className="mt-3 text-sm text-white/70">Sem sessão ativa.</div>
         ) : (
@@ -432,22 +496,37 @@ export default function DevWork() {
         )}
       </section>
 
-      {/* BOARD — scroll horizontal APENAS aqui */}
-      <section className="rounded-2xl border border-white/10 bg-white/5">
-        <div className="overflow-x-auto">
-          <div className="min-w-[980px] flex gap-3 p-3 snap-x snap-mandatory">
+      {/* BOARD — só o board tem scroll horizontal, fica dentro da viewport */}
+      <section
+        className="rounded-2xl border border-white/10 bg-white/5 flex-1 min-h-0"
+        style={{ /* ocupa o resto do ecrã; só o interior scrolla horizontalmente */
+          display: "flex", flexDirection: "column"
+        }}
+      >
+        <div className="overflow-x-auto overflow-y-hidden flex-1">
+          <div className="min-w-[980px] flex gap-3 p-3 snap-x snap-mandatory h-full">
             {columns.map(col => {
               const items = visible.filter(col.filter);
+              const isDropHot = isStatusGrouping && dragCol === col.key;
               return (
                 <div key={col.key}
-                     className="w-[320px] md:w-[360px] shrink-0 snap-start rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+                     onDragOver={(e)=>onDragOverCol(e, col.key)}
+                     onDrop={(e)=>onDropCol(e, col.key)}
+                     className={cx(
+                       "w-[320px] md:w-[360px] shrink-0 snap-start rounded-2xl border bg-white/[0.03] p-3 flex flex-col",
+                       "border-white/10",
+                       isDropHot && "border-white/40 bg-white/[0.06]"
+                     )}
+                     style={{ height: "100%" }}
+                >
                   <div className="flex items-center justify-between">
                     <h4 className="font-semibold flex items-center gap-2">
                       <span>{("emoji" in col ? (col as any).emoji : undefined) ?? "📦"}</span>{col.title}
                     </h4>
                     <span className="text-xs text-white/60">{items.length}</span>
                   </div>
-                  <div className="mt-2 space-y-2">
+
+                  <div className="mt-2 space-y-2 overflow-y-auto pr-1" style={{ flex: 1 }}>
                     {items.map(t => {
                       const mine = (t.dev_task_assignees ?? []).some((a:Assignee)=>a.user_id===uid);
                       const eff = effort[t.id] || { totalMin: 0, myMin: 0 };
@@ -458,12 +537,23 @@ export default function DevWork() {
                       const over = maxH > 0 && totalH > maxH;
 
                       return (
-                        <article key={t.id}
-                                 className="rounded-xl border border-white/10 bg-gradient-to-br from-white/10 to-white/[0.02] p-3 hover:border-white/20 transition">
-                          <button className="text-left w-full" onClick={()=>setOpenId(t.id)} title="Abrir detalhes">
-                            <div className="font-medium truncate">{t.title}</div>
-                            {t.description && <div className="text-xs text-white/60 mt-1 line-clamp-2">{t.description}</div>}
-                          </button>
+                        <article
+                          key={t.id}
+                          draggable={isStatusGrouping && (isHead || mine)}
+                          onDragStart={(e)=>onDragStart(e, t.id)}
+                          className={cx(
+                            "rounded-xl border border-white/10 bg-gradient-to-br from-white/10 to-white/[0.02] p-3 hover:border-white/20 transition",
+                            dragId===t.id && "opacity-60"
+                          )}
+                        >
+                          <div className="flex items-start gap-2">
+                            <button className="text-left w-full" onClick={()=>setOpenId(t.id)} title="Abrir detalhes">
+                              <div className="font-medium truncate">{t.title}</div>
+                              {t.description && <div className="text-xs text-white/60 mt-1 line-clamp-2">{t.description}</div>}
+                            </button>
+                            {/* Quick status sem prompt */}
+                            {groupBy==="status" && <QuickStatus task={t} />}
+                          </div>
 
                           {maxH > 0 && (
                             <div className="mt-2">
@@ -496,16 +586,9 @@ export default function DevWork() {
                             >
                               Clock
                             </button>
-                            {isHead && (
-                              <button
-                                onClick={async ()=>{
-                                  const ns = prompt("Novo estado: backlog|in_progress|blocked|review|done", t.status) as DevTask["status"]|null;
-                                  if (!ns) return;
-                                  try { await updateTask(t.id, { status: ns }); await refreshTasks(); sound.play("success"); show("ok","Estado atualizado"); }
-                                  catch(e:any){ sound.play("error"); show("err", e?.message ?? "Falha a mover"); }
-                                }}
-                                className="px-2 py-1 rounded bg-white/10 text-xs border border-white/10"
-                              >Mover</button>
+                            {/* Mover (sem prompt): dropdown inline quando não estás em "status" */}
+                            {groupBy!=="status" && (isHead || mine) && (
+                              <QuickStatus task={t} />
                             )}
                           </div>
                         </article>
@@ -520,7 +603,7 @@ export default function DevWork() {
         </div>
       </section>
 
-      {/* Drawer Detalhes (com atribuição Head + ações) */}
+      {/* Drawer Detalhes */}
       {openTask && (
         <>
           <div className="fixed inset-0 z-40 bg-black/40" onClick={()=>setOpenId(null)} />
