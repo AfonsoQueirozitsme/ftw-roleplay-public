@@ -42,6 +42,8 @@ import Candidaturas from "@/pages/admin/candidaturas";
 import Logs from "@/pages/admin/logs";
 import Imagens from "@/pages/admin/imagens";
 import Resources from "@/pages/admin/resources";
+import DevWork from "@/pages/admin/DevWork";
+import DevLeaders from "@/pages/admin/DevLeaders";
 
 export default function App() {
   return (
@@ -97,7 +99,9 @@ export default function App() {
         <Route path="candidaturas" element={<Candidaturas />} />
         <Route path="logs" element={<Logs />} />
         <Route path="imagens" element={<Imagens />} />
+        <Route path="devwork" element={<DevWork />} />
         <Route path="resources" element={<Resources />} />
+        <Route path="devleaders" element={<DevLeaders />} />
         {/* 404 específico do /admin */}
         <Route path="*" element={<NotFound />} />
       </Route>
