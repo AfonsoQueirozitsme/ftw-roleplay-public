@@ -1,7 +1,7 @@
 // src/admin/DevWork.tsx
-// Board melhorado: scroll horizontal só no board, clock com cache local/restore,
-// picker de utilizadores, UI gamificada, drag-and-drop entre estados, quick-select,
-// progress bar do clock e layout que não sai da viewport.
+// Realtime + DnD + board confinado à viewport + scroll só no board/colunas,
+// picker de utilizadores, UI gamificada, clock com cache/local drafts e barra mm:ss,
+// reconciliação corrigida (sem "a reconciliar…" infinito).
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
@@ -44,7 +44,7 @@ type Assignee = { user_id: string };
 function useToasts() {
   const [toasts, setToasts] = useState<{ id:number; kind:"ok"|"err"|"info"; text:string }[]>([]);
   const seq = useRef(1);
-  function show(kind: "ok"|"err"|"info", text: string, ms = 2400) {
+  function show(kind: "ok"|"err"|"info", text: string, ms = 2200) {
     const id = seq.current++;
     setToasts(t => [...t, { id, kind, text }]);
     setTimeout(() => setToasts(t => t.filter(x => x.id !== id)), ms);
@@ -152,12 +152,20 @@ export default function DevWork() {
   const [q, setQ] = useState("");
   const [groupBy, setGroupBy] = useState<"status"|"assignee"|"priority">("status");
 
+  // effort view
+  type EffortRow = { task_id: string; user_id: string; minutes_total: number };
+  const [effort, setEffort] = useState<Record<string, { totalMin: number; myMin: number }>>({});
+  const effortReloadTimer = useRef<number|undefined>(undefined);
+  const scheduleEffortReload = () => {
+    if (effortReloadTimer.current) window.clearTimeout(effortReloadTimer.current);
+    effortReloadTimer.current = window.setTimeout(() => reloadEffort(), 250);
+  };
+
   async function refreshTasks() {
     setLoadingTasks(true); setErr(null);
     try {
       const res = await listTasks();
       let t = res.data;
-      // dev normal só vê as suas
       if (!isHead && uid) t = t.filter(T => (T.dev_task_assignees ?? []).some((a:Assignee)=>a.user_id===uid));
       setTasks(t);
     } catch (e:any) {
@@ -166,32 +174,81 @@ export default function DevWork() {
   }
   useEffect(() => { refreshTasks(); }, [isHead, uid]);
 
-  // esforço (view)
-  type EffortRow = { task_id: string; user_id: string; minutes_total: number };
-  const [effort, setEffort] = useState<Record<string, { totalMin: number; myMin: number }>>({});
-  useEffect(() => {
-    (async () => {
-      if (tasks.length === 0) { setEffort({}); return; }
-      const ids = tasks.map(t => t.id);
-      const { data } = await supabase.from("dev_task_effort").select("*").in("task_id", ids);
-      const by: Record<string, { totalMin: number; myMin: number }> = {};
-      (data as EffortRow[] ?? []).forEach(r => {
-        by[r.task_id] ||= { totalMin: 0, myMin: 0 };
-        by[r.task_id].totalMin += r.minutes_total;
-        if (r.user_id === uid) by[r.task_id].myMin += r.minutes_total;
-      });
-      setEffort(by);
-    })();
-  }, [tasks, uid]);
+  async function reloadEffort() {
+    if (tasks.length === 0) { setEffort({}); return; }
+    const ids = tasks.map(t => t.id);
+    const { data } = await supabase.from("dev_task_effort").select("*").in("task_id", ids);
+    const by: Record<string, { totalMin: number; myMin: number }> = {};
+    (data as EffortRow[] ?? []).forEach(r => {
+      by[r.task_id] ||= { totalMin: 0, myMin: 0 };
+      by[r.task_id].totalMin += r.minutes_total;
+      if (r.user_id === uid) by[r.task_id].myMin += r.minutes_total;
+    });
+    setEffort(by);
+  }
+  useEffect(() => { reloadEffort(); }, [tasks, uid]);
 
-  // filtro texto
+  // realtime — dev_tasks + dev_task_assignees + dev_time_sessions (minhas)
+  useEffect(() => {
+    const ch = supabase.channel("dev-work-realtime");
+
+    ch.on("postgres_changes",
+      { event: "*", schema: "public", table: "dev_tasks" },
+      (payload: any) => {
+        const row = (payload.new || payload.old) as DevTask;
+        setTasks(prev => {
+          // respeita as permissões do dev (só as suas) quando não é Head
+          const visibleToMe = isHead || (row?.dev_task_assignees ?? []).some((a:any)=>a.user_id===uid);
+          if (payload.eventType === "INSERT") {
+            if (!isHead && !visibleToMe) return prev;
+            return [row, ...prev.filter(t => t.id !== row.id)];
+          }
+          if (payload.eventType === "UPDATE") {
+            // Se deixou de me pertencer e não sou Head, remove
+            if (!isHead && !visibleToMe) return prev.filter(t => t.id !== row.id);
+            return prev.map(t => t.id===row.id ? { ...t, ...row } : t);
+          }
+          if (payload.eventType === "DELETE") {
+            return prev.filter(t => t.id !== row.id);
+          }
+          return prev;
+        });
+        scheduleEffortReload();
+      }
+    ).on("postgres_changes",
+      { event: "*", schema: "public", table: "dev_task_assignees" },
+      (_payload: any) => {
+        // Simplificação: recarrega (mantém fluidez)
+        refreshTasks();
+        scheduleEffortReload();
+      }
+    ).on("postgres_changes",
+      { event: "*", schema: "public", table: "dev_time_sessions", filter: uid ? `user_id=eq.${uid}` : undefined },
+      (_payload:any) => {
+        // Atualiza sessão se o backend fechar/renovar fora do cliente
+        getMyActiveSession().then(r=>{
+          setSession(r.session);
+          if (r.session) localStorage.setItem("dw:session", JSON.stringify(r.session));
+          else localStorage.removeItem("dw:session");
+        }).catch(()=>{});
+      }
+    );
+
+    ch.subscribe((status) => {
+      // opcional: console.debug('realtime', status);
+    });
+
+    return () => { supabase.removeChannel(ch); };
+  }, [isHead, uid]);
+
+  // filtro
   const visible = useMemo(() => {
     const s = q.trim().toLowerCase();
     if (!s) return tasks;
     return tasks.filter(t => t.title.toLowerCase().includes(s) || (t.description ?? "").toLowerCase().includes(s));
   }, [tasks, q]);
 
-  // colunas (assignee/status/priority)
+  // colunas
   type Col = { key: string; title: string; emoji?: string; filter: (t:DevTask)=>boolean };
   const [allUsers, setAllUsers] = useState<StaffUser[]>([]);
   useEffect(() => { if (isHead) listStaffUsers("",200).then(setAllUsers).catch(()=>{}); }, [isHead]);
@@ -231,34 +288,38 @@ export default function DevWork() {
   const [openId, setOpenId] = useState<string|null>(null);
   const openTask = visible.find(t => t.id === openId) || null;
 
-  // CLOCK ——— persistência local
+  // CLOCK ——— persistência local + reconciliação robusta
   const [session, setSession] = useState<Session|null>(null);
   const [draftReport, setDraftReport] = useState("");
   const [draftForecast, setDraftForecast] = useState("");
   const [tick, setTick] = useState(0);
   const [reconciling, setReconciling] = useState(false);
 
-  // load from server + cache
   useEffect(() => {
     let live = true;
     (async () => {
-      const local = localStorage.getItem("dw:session");
-      const localObj: Session|undefined = local ? JSON.parse(local) : undefined;
+      const cached = localStorage.getItem("dw:session");
+      const cacheObj: (Session & { _ts?: number }) | undefined = cached ? JSON.parse(cached) : undefined;
+
+      // timeout de cache: 3h
+      const freshCache = cacheObj && (!cacheObj._ts || Date.now() - cacheObj._ts < 3 * 3600_000);
 
       const r = await getMyActiveSession().catch(()=>({ session:null }));
-      if (!live) return;
 
+      if (!live) return;
       if (r.session) {
+        setReconciling(false);
         setSession(r.session);
-        localStorage.setItem("dw:session", JSON.stringify(r.session));
+        localStorage.setItem("dw:session", JSON.stringify({ ...r.session, _ts: Date.now() }));
         const key = `dw:draft:${r.session.id}`;
         const d = JSON.parse(localStorage.getItem(key) || "{}");
         setDraftReport(d.report ?? "");
         setDraftForecast(d.forecast ?? "");
-      } else if (localObj?.id) {
-        setSession(localObj);
+      } else if (freshCache) {
+        // mostra cache e tenta reconciliar (máx 2 min)
+        setSession(cacheObj!);
         setReconciling(true);
-        const key = `dw:draft:${localObj.id}`;
+        const key = `dw:draft:${cacheObj!.id}`;
         const d = JSON.parse(localStorage.getItem(key) || "{}");
         setDraftReport(d.report ?? "");
         setDraftForecast(d.forecast ?? "");
@@ -266,12 +327,13 @@ export default function DevWork() {
         const poll = setInterval(async () => {
           tries++;
           const rr = await getMyActiveSession().catch(()=>({ session:null }));
+          if (!live) { clearInterval(poll); return; }
           if (rr.session || tries > 12) {
             clearInterval(poll);
             setReconciling(false);
             if (rr.session) {
               setSession(rr.session);
-              localStorage.setItem("dw:session", JSON.stringify(rr.session));
+              localStorage.setItem("dw:session", JSON.stringify({ ...rr.session, _ts: Date.now() }));
             } else {
               setSession(null);
               localStorage.removeItem("dw:session");
@@ -279,7 +341,9 @@ export default function DevWork() {
           }
         }, 10000);
       } else {
+        setReconciling(false);
         setSession(null);
+        localStorage.removeItem("dw:session");
       }
     })();
     const id = setInterval(()=>setTick(v=>v+1), 1000);
@@ -295,46 +359,32 @@ export default function DevWork() {
     localStorage.setItem(key, JSON.stringify(payload));
   }, [draftReport, draftForecast, session?.id]);
 
-  const nextDue = useMemo(() => {
-    if (!session) return null;
-    const base = new Date(session.last_renewal_at || session.started_at).getTime();
-    return new Date(base + 30*60*1000);
-  }, [session]);
   const totalMs = 30*60*1000;
-  const elapsedMs = useMemo(() => {
-    if (!session) return 0;
-    const base = new Date(session.last_renewal_at || session.started_at).getTime();
-    return Math.min(totalMs, Math.max(0, Date.now() - base));
-  }, [session, tick]);
-  const overdueMs = useMemo(() => !nextDue ? 0 : Date.now() - nextDue.getTime(), [nextDue, tick]);
-
-  useEffect(() => {
-    if (!session || !nextDue) return;
-    if (nextDue.getTime() - Date.now() <= 0) sound.play("ping");
-  }, [nextDue, tick, session]);
-
+  const lastBase = useMemo(() => session ? new Date(session.last_renewal_at || session.started_at).getTime() : 0, [session]);
+  const elapsedMs = useMemo(() => session ? Math.min(totalMs, Math.max(0, Date.now() - lastBase)) : 0, [session, lastBase, tick]);
   const pctToNext = Math.round((elapsedMs/totalMs)*100);
   const remainMs = Math.max(0, totalMs - elapsedMs);
   const mm = String(Math.floor(remainMs/60000)).padStart(2,"0");
   const ss = String(Math.floor((remainMs%60000)/1000)).padStart(2,"0");
+  useEffect(() => { if (session && elapsedMs >= totalMs) sound.play("ping"); }, [elapsedMs, session]);
 
   async function startClock(task: DevTask) {
     const mine = (task.dev_task_assignees ?? []).some((a:Assignee)=>a.user_id===uid);
     if (!isHead && !mine) { show("err","Não podes dar clock: tarefa não é tua"); return; }
     try {
       const { session } = await clockStart(task.id);
-      setSession(session); setDraftReport(""); setDraftForecast("");
-      localStorage.setItem("dw:session", JSON.stringify(session));
+      setSession(session); setDraftReport(""); setDraftForecast(""); setReconciling(false);
+      localStorage.setItem("dw:session", JSON.stringify({ ...session, _ts: Date.now() }));
       sound.play("success"); show("ok","Clock iniciado");
     } catch (e:any) { sound.play("error"); show("err", e?.message ?? "Falha ao iniciar"); }
   }
   async function renewClock() {
     if (!session) return;
     try {
-      const onTime = nextDue ? Math.abs(Date.now()-nextDue.getTime()) <= 2*60*1000 : false;
+      const onTime = Math.abs(elapsedMs - totalMs) <= 2*60*1000;
       const { session: s } = await clockRenew(session.id, draftReport.trim(), draftForecast.trim());
       setSession(s); setDraftReport(""); setDraftForecast("");
-      localStorage.setItem("dw:session", JSON.stringify(s));
+      localStorage.setItem("dw:session", JSON.stringify({ ...s, _ts: Date.now() }));
       sound.play(onTime ? "success" : "ping");
       show(onTime ? "ok" : "info", onTime ? "Renovação em tempo" : "Renovação fora da janela");
     } catch (e:any) { sound.play("error"); show("err", e?.message ?? "Falha ao renovar"); }
@@ -344,12 +394,12 @@ export default function DevWork() {
     try {
       const { session: s } = await clockStop(session.id, draftReport.trim() ? draftReport.trim() : undefined);
       setSession(s);
-      localStorage.setItem("dw:session", JSON.stringify(s));
+      localStorage.setItem("dw:session", JSON.stringify({ ...s, _ts: Date.now() }));
       sound.play("success"); show("ok","Clock terminado");
     } catch (e:any) { sound.play("error"); show("err", e?.message ?? "Falha ao terminar"); }
   }
 
-  // ——— Drag & Drop (status only) ———
+  // DnD em estados
   const [dragId, setDragId] = useState<string|null>(null);
   const [dragCol, setDragCol] = useState<string|null>(null);
   const isStatusGrouping = groupBy === "status";
@@ -383,7 +433,7 @@ export default function DevWork() {
     }
   }
 
-  // quick status select (sem prompt)
+  // quick status
   function QuickStatus({ task }: { task: DevTask }) {
     const mine = (task.dev_task_assignees ?? []).some((a:Assignee)=>a.user_id===uid);
     const can = isHead || mine;
@@ -408,41 +458,43 @@ export default function DevWork() {
     );
   }
 
-  // ——— UI ———
+  // UI
   return (
-    <div className="min-h-screen max-h-screen overflow-hidden flex flex-col gap-4">
+    <div className="h-screen max-h-screen overflow-hidden flex flex-col gap-4 p-4">
       <Toasts items={toasts} />
 
-      {/* GAMIFIED HEADER (fixo) */}
-      <header className="rounded-3xl border border-white/10 bg-gradient-to-r from-indigo-600/20 via-fuchsia-600/20 to-rose-600/20 p-4 flex items-center justify-between">
+      {/* Header */}
+      <header className="rounded-3xl border border-white/10 bg-gradient-to-r from-indigo-600/25 via-fuchsia-600/20 to-rose-600/25 p-4 flex items-center justify-between shadow-lg">
         <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded-xl bg-white text-black grid place-items-center font-bold">
+          <div className="h-10 w-10 rounded-xl bg-white text-black grid place-items-center font-bold shadow">
             {initials(shortName(email))}
           </div>
           <div>
             <div className="font-semibold">{shortName(email)}</div>
-            <div className="text-xs text-white/70">Painel de Trabalho · {isHead ? "Head Dev" : "Dev"}</div>
+            <div className="text-xs text-white/70">Painel · {isHead ? "Head Dev" : "Dev"}</div>
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Filtrar…"
+                 className="px-3 py-2 rounded-lg bg-white/10 border border-white/10 outline-none text-sm" />
           <select value={groupBy} onChange={e=>setGroupBy(e.target.value as any)}
                   className="bg-white/10 border border-white/10 rounded-lg px-3 py-2 text-sm outline-none">
             <option value="status">Por Estado</option>
             <option value="assignee">Por Atribuído</option>
             <option value="priority">Por Prioridade</option>
           </select>
-          <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Filtrar…"
-                 className="px-3 py-2 rounded-lg bg-white/10 border border-white/10 outline-none text-sm" />
           {isHead && (
-            <button onClick={()=>setNewOpen(true)} className="px-3 py-2 rounded-lg bg-white text-black text-sm">+ Nova</button>
+            <button onClick={()=>setNewOpen(true)} className="px-3 py-2 rounded-lg bg-white text-black text-sm shadow">+ Nova</button>
           )}
         </div>
       </header>
 
-      {/* CLOCK (fixo, dentro da viewport, sem scroll horizontal) */}
-      <section className="rounded-2xl border border-white/10 bg-white/5 p-4">
+      {/* Clock */}
+      <section className="rounded-2xl border border-white/10 bg-white/5 p-4 shrink-0">
         <div className="flex items-center justify-between">
-          <div className="font-semibold flex items-center gap-2">⏱️ Clock {reconciling && <span className="text-xs text-amber-300">· a reconciliar…</span>}</div>
+          <div className="font-semibold flex items-center gap-2">
+            ⏱️ Clock {reconciling && <span className="text-xs text-amber-300">· a reconciliar…</span>}
+          </div>
           {session && (
             <div
               title="Progresso até à próxima renovação (30m)"
@@ -456,7 +508,6 @@ export default function DevWork() {
           )}
         </div>
 
-        {/* Barra linear do clock + tempo restante */}
         {session && (
           <div className="mt-3">
             <div className="w-full h-2 rounded-full bg-white/10 overflow-hidden">
@@ -474,11 +525,7 @@ export default function DevWork() {
               <div><span className="text-white/60">Tarefa:</span> <strong>{tasks.find(t=>t.id===session.task_id)?.title ?? session.task_id}</strong></div>
               <div><span className="text-white/60">Início:</span> {new Date(session.started_at).toLocaleString()}</div>
               <div><span className="text-white/60">Última renovação:</span> {new Date(session.last_renewal_at).toLocaleString()}</div>
-              <div><span className="text-white/60">Próxima:</span> {nextDue?.toLocaleTimeString() ?? "—"}</div>
               <div><span className="text-white/60">Total (m):</span> {session.minutes_total}</div>
-              <div className={cx("text-xs", Math.floor(overdueMs/60000) >= 15 ? "text-rose-300":"text-white/60")}>
-                {nextDue ? (overdueMs>0 ? `⚠ Atraso: ${Math.floor(overdueMs/60000)}m` : `Faltam: ${Math.max(0, Math.floor((nextDue.getTime()-Date.now())/60000))}m`) : "—"}
-              </div>
             </div>
             <div>
               <label className="text-xs text-white/60">Relatório (últimos 30 min)</label>
@@ -496,25 +543,20 @@ export default function DevWork() {
         )}
       </section>
 
-      {/* BOARD — só o board tem scroll horizontal, fica dentro da viewport */}
-      <section
-        className="rounded-2xl border border-white/10 bg-white/5 flex-1 min-h-0"
-        style={{ /* ocupa o resto do ecrã; só o interior scrolla horizontalmente */
-          display: "flex", flexDirection: "column"
-        }}
-      >
-        <div className="overflow-x-auto overflow-y-hidden flex-1">
-          <div className="min-w-[980px] flex gap-3 p-3 snap-x snap-mandatory h-full">
+      {/* Board (ocupa o resto do ecrã; só ele tem scroll horizontal; cada coluna tem scroll vertical) */}
+      <section className="rounded-2xl border border-white/10 bg-white/5 flex-1 min-h-0">
+        <div className="h-full w-full overflow-x-auto overflow-y-hidden">
+          <div className="h-full flex gap-3 p-3 snap-x snap-mandatory">
             {columns.map(col => {
               const items = visible.filter(col.filter);
-              const isDropHot = isStatusGrouping && dragCol === col.key;
+              const isDropHot = groupBy === "status" && dragCol === col.key;
               return (
                 <div key={col.key}
                      onDragOver={(e)=>onDragOverCol(e, col.key)}
                      onDrop={(e)=>onDropCol(e, col.key)}
                      className={cx(
                        "w-[320px] md:w-[360px] shrink-0 snap-start rounded-2xl border bg-white/[0.03] p-3 flex flex-col",
-                       "border-white/10",
+                       "border-white/10 hover:border-white/20 transition",
                        isDropHot && "border-white/40 bg-white/[0.06]"
                      )}
                      style={{ height: "100%" }}
@@ -539,10 +581,11 @@ export default function DevWork() {
                       return (
                         <article
                           key={t.id}
-                          draggable={isStatusGrouping && (isHead || mine)}
+                          draggable={groupBy==="status" && (isHead || mine)}
                           onDragStart={(e)=>onDragStart(e, t.id)}
                           className={cx(
                             "rounded-xl border border-white/10 bg-gradient-to-br from-white/10 to-white/[0.02] p-3 hover:border-white/20 transition",
+                            "shadow-sm",
                             dragId===t.id && "opacity-60"
                           )}
                         >
@@ -551,7 +594,6 @@ export default function DevWork() {
                               <div className="font-medium truncate">{t.title}</div>
                               {t.description && <div className="text-xs text-white/60 mt-1 line-clamp-2">{t.description}</div>}
                             </button>
-                            {/* Quick status sem prompt */}
                             {groupBy==="status" && <QuickStatus task={t} />}
                           </div>
 
@@ -586,7 +628,6 @@ export default function DevWork() {
                             >
                               Clock
                             </button>
-                            {/* Mover (sem prompt): dropdown inline quando não estás em "status" */}
                             {groupBy!=="status" && (isHead || mine) && (
                               <QuickStatus task={t} />
                             )}
@@ -620,7 +661,7 @@ export default function DevWork() {
                   onBlur={async (e)=>{
                     const val = e.target.value.trim();
                     if (val && val !== openTask.title) {
-                      try { await updateTask(openTask.id, { title: val }); sound.play("success"); show("ok","Título atualizado"); await refreshTasks(); }
+                      try { await updateTask(openTask.id, { title: val }); sound.play("success"); show("ok","Título atualizado"); }
                       catch(e:any){ sound.play("error"); show("err", e?.message ?? "Falha a atualizar título"); }
                     }
                   }}
@@ -633,7 +674,7 @@ export default function DevWork() {
                   defaultValue={openTask.description ?? ""}
                   rows={4}
                   onBlur={async (e)=>{
-                    try { await updateTask(openTask.id, { description: e.target.value }); sound.play("success"); show("ok","Descrição atualizada"); await refreshTasks(); }
+                    try { await updateTask(openTask.id, { description: e.target.value }); sound.play("success"); show("ok","Descrição atualizada"); }
                     catch(e:any){ sound.play("error"); show("err", e?.message ?? "Falha a atualizar descrição"); }
                   }}
                   className="w-full rounded-lg bg-black/30 border border-white/10 p-2 outline-none"
@@ -646,7 +687,7 @@ export default function DevWork() {
                   <select
                     defaultValue={openTask.status}
                     onChange={async (e)=>{
-                      try { await updateTask(openTask.id, { status: e.target.value as DevTask["status"] }); sound.play("success"); show("ok","Estado atualizado"); await refreshTasks(); }
+                      try { await updateTask(openTask.id, { status: e.target.value as DevTask["status"] }); sound.play("success"); show("ok","Estado atualizado"); }
                       catch(e:any){ sound.play("error"); show("err", e?.message ?? "Falha a atualizar estado"); }
                     }}
                     className="w-full mt-1 rounded-lg bg-black/30 border border-white/10 p-2"
@@ -659,7 +700,7 @@ export default function DevWork() {
                   <select
                     defaultValue={openTask.priority ?? "normal"}
                     onChange={async (e)=>{
-                      try { await updateTask(openTask.id, { priority: e.target.value as DevTask["priority"] }); sound.play("success"); show("ok","Prioridade atualizada"); await refreshTasks(); }
+                      try { await updateTask(openTask.id, { priority: e.target.value as DevTask["priority"] }); sound.play("success"); show("ok","Prioridade atualizada"); }
                       catch(e:any){ sound.play("error"); show("err", e?.message ?? "Falha a atualizar prioridade"); }
                     }}
                     className="w-full mt-1 rounded-lg bg-black/30 border border-white/10 p-2"
@@ -674,7 +715,7 @@ export default function DevWork() {
                     onBlur={async (e)=>{
                       const v = Number(e.target.value);
                       if (!Number.isFinite(v)) return;
-                      try { await updateTask(openTask.id, { max_hours: v }); sound.play("success"); show("ok","Horas máx atualizadas"); await refreshTasks(); }
+                      try { await updateTask(openTask.id, { max_hours: v }); sound.play("success"); show("ok","Horas máx atualizadas"); }
                       catch(e:any){ sound.play("error"); show("err", e?.message ?? "Falha a atualizar"); }
                     }}
                     className="w-full mt-1 rounded-lg bg-black/30 border border-white/10 p-2"
@@ -695,8 +736,7 @@ export default function DevWork() {
                     onToggle={async (u, has) => {
                       try {
                         await assignTask(openTask.id, u.id, has ? "remove" : "add");
-                        sound.play("success");
-                        await refreshTasks();
+                        sound.play("success"); show("ok", has ? "Removido" : "Atribuído");
                       } catch (e:any) { sound.play("error"); show("err","Falha a atribuir"); }
                     }}
                   />
@@ -737,7 +777,7 @@ export default function DevWork() {
         </>
       )}
 
-      {/* Modal Nova Tarefa */}
+      {/* Nova Tarefa */}
       {newOpen && isHead && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/60">
           <div className="w-[min(92vw,640px)] rounded-2xl border border-white/10 bg-[#0b0b0c] p-4">
@@ -773,7 +813,6 @@ export default function DevWork() {
         </div>
       )}
 
-      {/* Erros */}
       {err && <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-rose-200">{err}</div>}
     </div>
   );
