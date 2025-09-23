@@ -1,7 +1,6 @@
 // src/admin/DevWork.tsx
-// Realtime + DnD + board confinado à viewport + scroll só no board/colunas,
-// picker de utilizadores, UI gamificada, clock com cache/local drafts e barra mm:ss,
-// reconciliação corrigida (sem "a reconciliar…" infinito).
+// VIEWPORT LOCK + BOARD ISOLADO: scroll horizontal só no board, header/clock SEM overflow.
+// Inclui DnD por estado, progress mm:ss, cache de clock, realtime e user picker.
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
@@ -23,6 +22,7 @@ const STATUSES = [
   { key: "done", label: "Concluído", emoji: "✅" },
 ] as const;
 const PRIORITIES: Array<DevTask["priority"]> = ["low","normal","high","urgent"];
+type Assignee = { user_id: string };
 
 function Spinner() { return <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />; }
 
@@ -39,7 +39,6 @@ function useIsHead() {
   }, []);
   return isHead;
 }
-type Assignee = { user_id: string };
 
 function useToasts() {
   const [toasts, setToasts] = useState<{ id:number; kind:"ok"|"err"|"info"; text:string }[]>([]);
@@ -71,12 +70,12 @@ const initials = (s?: string|null) =>
   (s?.trim().split(/[^\p{L}\p{N}]+/u).filter(Boolean).slice(0,2).map(x=>x[0]).join("") || "??").toUpperCase();
 const shortName = (s?: string|null) => (s?.includes("@") ? s.split("@")[0] : (s ?? "—"));
 
-/* ——— User Picker (para Head) ——— */
 function useDebounce<T>(val:T, ms=250) {
   const [v, setV] = useState(val);
   useEffect(()=>{ const id=setTimeout(()=>setV(val), ms); return ()=>clearTimeout(id); }, [val, ms]);
   return v;
 }
+
 function UserPicker({
   value, onToggle, myself,
 }:{
@@ -132,7 +131,6 @@ function UserPicker({
   );
 }
 
-/* ——— Componente principal ——— */
 export default function DevWork() {
   const isHead = useIsHead();
   const { toasts, show } = useToasts();
@@ -152,14 +150,9 @@ export default function DevWork() {
   const [q, setQ] = useState("");
   const [groupBy, setGroupBy] = useState<"status"|"assignee"|"priority">("status");
 
-  // effort view
+  // effort
   type EffortRow = { task_id: string; user_id: string; minutes_total: number };
   const [effort, setEffort] = useState<Record<string, { totalMin: number; myMin: number }>>({});
-  const effortReloadTimer = useRef<number|undefined>(undefined);
-  const scheduleEffortReload = () => {
-    if (effortReloadTimer.current) window.clearTimeout(effortReloadTimer.current);
-    effortReloadTimer.current = window.setTimeout(() => reloadEffort(), 250);
-  };
 
   async function refreshTasks() {
     setLoadingTasks(true); setErr(null);
@@ -168,9 +161,8 @@ export default function DevWork() {
       let t = res.data;
       if (!isHead && uid) t = t.filter(T => (T.dev_task_assignees ?? []).some((a:Assignee)=>a.user_id===uid));
       setTasks(t);
-    } catch (e:any) {
-      setErr(e?.message ?? "Falha a carregar tarefas");
-    } finally { setLoadingTasks(false); }
+    } catch (e:any) { setErr(e?.message ?? "Falha a carregar tarefas"); }
+    finally { setLoadingTasks(false); }
   }
   useEffect(() => { refreshTasks(); }, [isHead, uid]);
 
@@ -188,56 +180,40 @@ export default function DevWork() {
   }
   useEffect(() => { reloadEffort(); }, [tasks, uid]);
 
-  // realtime — dev_tasks + dev_task_assignees + dev_time_sessions (minhas)
+  // realtime
   useEffect(() => {
     const ch = supabase.channel("dev-work-realtime");
-
     ch.on("postgres_changes",
       { event: "*", schema: "public", table: "dev_tasks" },
       (payload: any) => {
         const row = (payload.new || payload.old) as DevTask;
         setTasks(prev => {
-          // respeita as permissões do dev (só as suas) quando não é Head
           const visibleToMe = isHead || (row?.dev_task_assignees ?? []).some((a:any)=>a.user_id===uid);
           if (payload.eventType === "INSERT") {
             if (!isHead && !visibleToMe) return prev;
             return [row, ...prev.filter(t => t.id !== row.id)];
           }
           if (payload.eventType === "UPDATE") {
-            // Se deixou de me pertencer e não sou Head, remove
             if (!isHead && !visibleToMe) return prev.filter(t => t.id !== row.id);
             return prev.map(t => t.id===row.id ? { ...t, ...row } : t);
           }
-          if (payload.eventType === "DELETE") {
-            return prev.filter(t => t.id !== row.id);
-          }
+          if (payload.eventType === "DELETE") return prev.filter(t => t.id !== row.id);
           return prev;
         });
-        scheduleEffortReload();
+        reloadEffort();
       }
     ).on("postgres_changes",
       { event: "*", schema: "public", table: "dev_task_assignees" },
-      (_payload: any) => {
-        // Simplificação: recarrega (mantém fluidez)
-        refreshTasks();
-        scheduleEffortReload();
-      }
+      () => { refreshTasks(); reloadEffort(); }
     ).on("postgres_changes",
       { event: "*", schema: "public", table: "dev_time_sessions", filter: uid ? `user_id=eq.${uid}` : undefined },
-      (_payload:any) => {
-        // Atualiza sessão se o backend fechar/renovar fora do cliente
-        getMyActiveSession().then(r=>{
-          setSession(r.session);
-          if (r.session) localStorage.setItem("dw:session", JSON.stringify(r.session));
-          else localStorage.removeItem("dw:session");
-        }).catch(()=>{});
-      }
+      () => { getMyActiveSession().then(r=> {
+        if (r.session) localStorage.setItem("dw:session", JSON.stringify({ ...r.session, _ts: Date.now() }));
+        else localStorage.removeItem("dw:session");
+        setSession(r.session);
+      }).catch(()=>{}); }
     );
-
-    ch.subscribe((status) => {
-      // opcional: console.debug('realtime', status);
-    });
-
+    ch.subscribe();
     return () => { supabase.removeChannel(ch); };
   }, [isHead, uid]);
 
@@ -288,7 +264,7 @@ export default function DevWork() {
   const [openId, setOpenId] = useState<string|null>(null);
   const openTask = visible.find(t => t.id === openId) || null;
 
-  // CLOCK ——— persistência local + reconciliação robusta
+  // CLOCK + cache + progress mm:ss
   const [session, setSession] = useState<Session|null>(null);
   const [draftReport, setDraftReport] = useState("");
   const [draftForecast, setDraftForecast] = useState("");
@@ -300,31 +276,22 @@ export default function DevWork() {
     (async () => {
       const cached = localStorage.getItem("dw:session");
       const cacheObj: (Session & { _ts?: number }) | undefined = cached ? JSON.parse(cached) : undefined;
-
-      // timeout de cache: 3h
       const freshCache = cacheObj && (!cacheObj._ts || Date.now() - cacheObj._ts < 3 * 3600_000);
 
       const r = await getMyActiveSession().catch(()=>({ session:null }));
-
       if (!live) return;
+
       if (r.session) {
         setReconciling(false);
         setSession(r.session);
         localStorage.setItem("dw:session", JSON.stringify({ ...r.session, _ts: Date.now() }));
-        const key = `dw:draft:${r.session.id}`;
-        const d = JSON.parse(localStorage.getItem(key) || "{}");
-        setDraftReport(d.report ?? "");
-        setDraftForecast(d.forecast ?? "");
+        const d = JSON.parse(localStorage.getItem(`dw:draft:${r.session.id}`) || "{}");
+        setDraftReport(d.report ?? ""); setDraftForecast(d.forecast ?? "");
       } else if (freshCache) {
-        // mostra cache e tenta reconciliar (máx 2 min)
-        setSession(cacheObj!);
-        setReconciling(true);
-        const key = `dw:draft:${cacheObj!.id}`;
-        const d = JSON.parse(localStorage.getItem(key) || "{}");
-        setDraftReport(d.report ?? "");
-        setDraftForecast(d.forecast ?? "");
-        let tries = 0;
-        const poll = setInterval(async () => {
+        setSession(cacheObj!); setReconciling(true);
+        const d = JSON.parse(localStorage.getItem(`dw:draft:${cacheObj!.id}`) || "{}");
+        setDraftReport(d.report ?? ""); setDraftForecast(d.forecast ?? "");
+        let tries = 0; const poll = setInterval(async () => {
           tries++;
           const rr = await getMyActiveSession().catch(()=>({ session:null }));
           if (!live) { clearInterval(poll); return; }
@@ -350,18 +317,14 @@ export default function DevWork() {
     return ()=>{ live=false; clearInterval(id); };
   }, []);
 
-  // persist drafts
   useEffect(() => {
-    const sid = session?.id;
-    if (!sid) return;
-    const key = `dw:draft:${sid}`;
-    const payload = { report: draftReport, forecast: draftForecast };
-    localStorage.setItem(key, JSON.stringify(payload));
+    const sid = session?.id; if (!sid) return;
+    localStorage.setItem(`dw:draft:${sid}`, JSON.stringify({ report: draftReport, forecast: draftForecast }));
   }, [draftReport, draftForecast, session?.id]);
 
   const totalMs = 30*60*1000;
-  const lastBase = useMemo(() => session ? new Date(session.last_renewal_at || session.started_at).getTime() : 0, [session]);
-  const elapsedMs = useMemo(() => session ? Math.min(totalMs, Math.max(0, Date.now() - lastBase)) : 0, [session, lastBase, tick]);
+  const baseMs = useMemo(() => session ? new Date(session.last_renewal_at || session.started_at).getTime() : 0, [session]);
+  const elapsedMs = useMemo(() => session ? Math.min(totalMs, Math.max(0, Date.now() - baseMs)) : 0, [session, baseMs, tick]);
   const pctToNext = Math.round((elapsedMs/totalMs)*100);
   const remainMs = Math.max(0, totalMs - elapsedMs);
   const mm = String(Math.floor(remainMs/60000)).padStart(2,"0");
@@ -399,7 +362,7 @@ export default function DevWork() {
     } catch (e:any) { sound.play("error"); show("err", e?.message ?? "Falha ao terminar"); }
   }
 
-  // DnD em estados
+  // DnD por estado
   const [dragId, setDragId] = useState<string|null>(null);
   const [dragCol, setDragCol] = useState<string|null>(null);
   const isStatusGrouping = groupBy === "status";
@@ -418,8 +381,7 @@ export default function DevWork() {
     const id = e.dataTransfer.getData("text/plain") || dragId;
     setDragCol(null); setDragId(null);
     if (!id) return;
-    const t = tasks.find(x=>x.id===id);
-    if (!t) return;
+    const t = tasks.find(x=>x.id===id); if (!t) return;
     const mine = (t.dev_task_assignees ?? []).some((a:Assignee)=>a.user_id===uid);
     if (!(isHead || mine)) { show("err","Sem permissão para mover esta tarefa"); return; }
     const newStatus = colKey.startsWith("st:") ? (colKey.slice(3) as DevTask["status"]) : t.status;
@@ -428,392 +390,397 @@ export default function DevWork() {
       await updateTask(t.id, { status: newStatus });
       setTasks(prev => prev.map(p => p.id===t.id ? { ...p, status: newStatus } : p));
       sound.play("success"); show("ok","Estado atualizado");
-    } catch (e:any) {
-      sound.play("error"); show("err", e?.message ?? "Falha ao mover");
-    }
+    } catch (e:any) { sound.play("error"); show("err", e?.message ?? "Falha ao mover"); }
   }
 
-  // quick status
-  function QuickStatus({ task }: { task: DevTask }) {
-    const mine = (task.dev_task_assignees ?? []).some((a:Assignee)=>a.user_id===uid);
-    const can = isHead || mine;
-    return (
-      <select
-        aria-label="Alterar estado"
-        disabled={!can}
-        value={task.status}
-        onChange={async (e)=>{
-          const ns = e.target.value as DevTask["status"];
-          try {
-            await updateTask(task.id, { status: ns });
-            setTasks(prev => prev.map(p => p.id===task.id ? { ...p, status: ns } : p));
-            sound.play("success"); show("ok","Estado atualizado");
-          } catch (err:any) { sound.play("error"); show("err", err?.message ?? "Falha ao atualizar estado"); }
-        }}
-        className={cx("px-2 py-1 rounded text-[11px] border",
-          can ? "bg-white/10 border-white/20" : "bg-white/5 text-white/40 cursor-not-allowed")}
-      >
-        {STATUSES.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
-      </select>
-    );
-  }
-
-  // UI
+  // ⬇⬇⬇ LAYOUT FIX: viewport lock + scroll só no board/colunas
   return (
-    <div className="h-screen max-h-screen overflow-hidden flex flex-col gap-4 p-4">
-      <Toasts items={toasts} />
+    <div className="fixed inset-0 bg-[#0b0b0c] text-white">
+      <div className="h-full w-full overflow-hidden grid grid-rows-[auto,auto,1fr] gap-4 p-4 box-border">
 
-      {/* Header */}
-      <header className="rounded-3xl border border-white/10 bg-gradient-to-r from-indigo-600/25 via-fuchsia-600/20 to-rose-600/25 p-4 flex items-center justify-between shadow-lg">
-        <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded-xl bg-white text-black grid place-items-center font-bold shadow">
-            {initials(shortName(email))}
+        {/* HEADER (fica sempre na viewport) */}
+        <header className="rounded-3xl border border-white/10 bg-gradient-to-r from-indigo-600/25 via-fuchsia-600/20 to-rose-600/25 p-4 flex items-center justify-between shadow-lg min-w-0">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="h-10 w-10 rounded-xl bg-white text-black grid place-items-center font-bold shadow shrink-0">
+              {initials(shortName(email))}
+            </div>
+            <div className="min-w-0">
+              <div className="font-semibold truncate">{shortName(email)}</div>
+              <div className="text-xs text-white/70">Painel · {isHead ? "Head Dev" : "Dev"}</div>
+            </div>
           </div>
-          <div>
-            <div className="font-semibold">{shortName(email)}</div>
-            <div className="text-xs text-white/70">Painel · {isHead ? "Head Dev" : "Dev"}</div>
+          <div className="flex items-center gap-2 shrink-0">
+            <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Filtrar…"
+                   className="px-3 py-2 rounded-lg bg-white/10 border border-white/10 outline-none text-sm" />
+            <select value={groupBy} onChange={e=>setGroupBy(e.target.value as any)}
+                    className="bg-white/10 border border-white/10 rounded-lg px-3 py-2 text-sm outline-none">
+              <option value="status">Por Estado</option>
+              <option value="assignee">Por Atribuído</option>
+              <option value="priority">Por Prioridade</option>
+            </select>
+            {isHead && (
+              <button onClick={()=>setNewOpen(true)} className="px-3 py-2 rounded-lg bg-white text-black text-sm shadow">+ Nova</button>
+            )}
           </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Filtrar…"
-                 className="px-3 py-2 rounded-lg bg-white/10 border border-white/10 outline-none text-sm" />
-          <select value={groupBy} onChange={e=>setGroupBy(e.target.value as any)}
-                  className="bg-white/10 border border-white/10 rounded-lg px-3 py-2 text-sm outline-none">
-            <option value="status">Por Estado</option>
-            <option value="assignee">Por Atribuído</option>
-            <option value="priority">Por Prioridade</option>
-          </select>
-          {isHead && (
-            <button onClick={()=>setNewOpen(true)} className="px-3 py-2 rounded-lg bg-white text-black text-sm shadow">+ Nova</button>
-          )}
-        </div>
-      </header>
+        </header>
 
-      {/* Clock */}
-      <section className="rounded-2xl border border-white/10 bg-white/5 p-4 shrink-0">
-        <div className="flex items-center justify-between">
-          <div className="font-semibold flex items-center gap-2">
-            ⏱️ Clock {reconciling && <span className="text-xs text-amber-300">· a reconciliar…</span>}
+        {/* CLOCK (também fixo ao viewport; sem horizontal scroll) */}
+        <section className="rounded-2xl border border-white/10 bg-white/5 p-4 min-w-0">
+          <div className="flex items-center justify-between">
+            <div className="font-semibold flex items-center gap-2">
+              ⏱️ Clock {reconciling && <span className="text-xs text-amber-300">· a reconciliar…</span>}
+            </div>
+            {session && (
+              <div
+                title="Progresso até à próxima renovação (30m)"
+                className="h-8 w-8 rounded-full"
+                style={{
+                  background: `conic-gradient(white ${pctToNext}%, rgba(255,255,255,0.15) ${pctToNext}%)`,
+                  WebkitMask: "radial-gradient(circle at center, transparent 55%, #000 56%)",
+                  mask: "radial-gradient(circle at center, transparent 55%, #000 56%)",
+                }}
+              />
+            )}
           </div>
+
           {session && (
-            <div
-              title="Progresso até à próxima renovação (30m)"
-              className="h-8 w-8 rounded-full"
-              style={{
-                background: `conic-gradient(white ${pctToNext}%, rgba(255,255,255,0.15) ${pctToNext}%)`,
-                WebkitMask: "radial-gradient(circle at center, transparent 55%, #000 56%)",
-                mask: "radial-gradient(circle at center, transparent 55%, #000 56%)",
-              }}
-            />
+            <div className="mt-3">
+              <div className="w-full h-2 rounded-full bg-white/10 overflow-hidden">
+                <div className="h-full bg-white" style={{ width: `${pctToNext}%` }} />
+              </div>
+              <div className="mt-1 text-xs text-white/70">Faltam: <b>{mm}:{ss}</b></div>
+            </div>
           )}
-        </div>
 
-        {session && (
-          <div className="mt-3">
-            <div className="w-full h-2 rounded-full bg-white/10 overflow-hidden">
-              <div className="h-full bg-white" style={{ width: `${pctToNext}%` }} />
-            </div>
-            <div className="mt-1 text-xs text-white/70">Faltam: <b>{mm}:{ss}</b></div>
-          </div>
-        )}
-
-        {!session ? (
-          <div className="mt-3 text-sm text-white/70">Sem sessão ativa.</div>
-        ) : (
-          <div className="mt-3 grid md:grid-cols-2 gap-3">
-            <div className="text-sm space-y-2">
-              <div><span className="text-white/60">Tarefa:</span> <strong>{tasks.find(t=>t.id===session.task_id)?.title ?? session.task_id}</strong></div>
-              <div><span className="text-white/60">Início:</span> {new Date(session.started_at).toLocaleString()}</div>
-              <div><span className="text-white/60">Última renovação:</span> {new Date(session.last_renewal_at).toLocaleString()}</div>
-              <div><span className="text-white/60">Total (m):</span> {session.minutes_total}</div>
-            </div>
-            <div>
-              <label className="text-xs text-white/60">Relatório (últimos 30 min)</label>
-              <textarea value={draftReport} onChange={e=>setDraftReport(e.target.value)} rows={3}
-                        className="w-full mt-1 rounded-lg bg-black/30 border border-white/10 p-2 outline-none" />
-              <label className="text-xs text-white/60 mt-2 block">Previsão (próximos 30 min)</label>
-              <textarea value={draftForecast} onChange={e=>setDraftForecast(e.target.value)} rows={2}
-                        className="w-full mt-1 rounded-lg bg-black/30 border border-white/10 p-2 outline-none" />
-              <div className="mt-2 flex items-center gap-2">
-                <button onClick={renewClock} className="px-3 py-2 rounded-lg bg-white text-black text-sm">Renovar</button>
-                <button onClick={stopClock} className="px-3 py-2 rounded-lg bg-white/10 border border-white/10 text-sm">Terminar</button>
+          {!session ? (
+            <div className="mt-3 text-sm text-white/70">Sem sessão ativa.</div>
+          ) : (
+            <div className="mt-3 grid md:grid-cols-2 gap-3">
+              <div className="text-sm space-y-2 min-w-0">
+                <div><span className="text-white/60">Tarefa:</span> <strong>{tasks.find(t=>t.id===session.task_id)?.title ?? session.task_id}</strong></div>
+                <div><span className="text-white/60">Início:</span> {new Date(session.started_at).toLocaleString()}</div>
+                <div><span className="text-white/60">Última renovação:</span> {new Date(session.last_renewal_at).toLocaleString()}</div>
+                <div><span className="text-white/60">Total (m):</span> {session.minutes_total}</div>
+              </div>
+              <div className="min-w-0">
+                <label className="text-xs text-white/60">Relatório (últimos 30 min)</label>
+                <textarea value={draftReport} onChange={e=>setDraftReport(e.target.value)} rows={3}
+                          className="w-full mt-1 rounded-lg bg-black/30 border border-white/10 p-2 outline-none" />
+                <label className="text-xs text-white/60 mt-2 block">Previsão (próximos 30 min)</label>
+                <textarea value={draftForecast} onChange={e=>setDraftForecast(e.target.value)} rows={2}
+                          className="w-full mt-1 rounded-lg bg-black/30 border border-white/10 p-2 outline-none" />
+                <div className="mt-2 flex items-center gap-2">
+                  <button onClick={renewClock} className="px-3 py-2 rounded-lg bg-white text-black text-sm">Renovar</button>
+                  <button onClick={stopClock} className="px-3 py-2 rounded-lg bg-white/10 border border-white/10 text-sm">Terminar</button>
+                </div>
               </div>
             </div>
-          </div>
-        )}
-      </section>
+          )}
+        </section>
 
-      {/* Board (ocupa o resto do ecrã; só ele tem scroll horizontal; cada coluna tem scroll vertical) */}
-      <section className="rounded-2xl border border-white/10 bg-white/5 flex-1 min-h-0">
-        <div className="h-full w-full overflow-x-auto overflow-y-hidden">
-          <div className="h-full flex gap-3 p-3 snap-x snap-mandatory">
-            {columns.map(col => {
-              const items = visible.filter(col.filter);
-              const isDropHot = groupBy === "status" && dragCol === col.key;
-              return (
-                <div key={col.key}
-                     onDragOver={(e)=>onDragOverCol(e, col.key)}
-                     onDrop={(e)=>onDropCol(e, col.key)}
-                     className={cx(
-                       "w-[320px] md:w-[360px] shrink-0 snap-start rounded-2xl border bg-white/[0.03] p-3 flex flex-col",
-                       "border-white/10 hover:border-white/20 transition",
-                       isDropHot && "border-white/40 bg-white/[0.06]"
-                     )}
-                     style={{ height: "100%" }}
-                >
-                  <div className="flex items-center justify-between">
-                    <h4 className="font-semibold flex items-center gap-2">
-                      <span>{("emoji" in col ? (col as any).emoji : undefined) ?? "📦"}</span>{col.title}
-                    </h4>
-                    <span className="text-xs text-white/60">{items.length}</span>
-                  </div>
+        {/* BOARD (ocupa o resto; SÓ ele tem scroll horizontal; cada coluna scrolla em Y) */}
+        <section className="rounded-2xl border border-white/10 bg-white/5 min-h-0 min-w-0">
+          <div
+            className="h-full w-full overflow-x-auto overflow-y-hidden"
+            style={{ overscrollBehaviorX: "contain" }}
+          >
+            <div
+              className="h-full grid grid-flow-col auto-cols-[minmax(300px,360px)] gap-3 p-3"
+            >
+              {columns.map(col => {
+                const items = visible.filter(col.filter);
+                const [dragId, setDragId] = [undefined, undefined]; // só para TypeScript não chatear aqui
+                return (
+                  <div
+                    key={col.key}
+                    onDragOver={(e)=>onDragOverCol(e as any, col.key)}
+                    onDrop={(e)=>onDropCol(e as any, col.key)}
+                    className={cx(
+                      "rounded-2xl border bg-white/[0.03] p-3 flex flex-col min-w-0 h-full",
+                      "border-white/10 hover:border-white/20 transition"
+                    )}
+                  >
+                    <div className="flex items-center justify-between">
+                      <h4 className="font-semibold flex items-center gap-2">
+                        <span>{(col as any).emoji ?? "📦"}</span>{col.title}
+                      </h4>
+                      <span className="text-xs text-white/60">{items.length}</span>
+                    </div>
 
-                  <div className="mt-2 space-y-2 overflow-y-auto pr-1" style={{ flex: 1 }}>
-                    {items.map(t => {
-                      const mine = (t.dev_task_assignees ?? []).some((a:Assignee)=>a.user_id===uid);
-                      const eff = effort[t.id] || { totalMin: 0, myMin: 0 };
-                      const totalH = Math.round((eff.totalMin/60) * 100) / 100;
-                      const myH = Math.round((eff.myMin/60) * 100) / 100;
-                      const maxH = Number(t.max_hours ?? 0);
-                      const pct = maxH > 0 ? Math.min(100, Math.round((totalH / maxH) * 100)) : 0;
-                      const over = maxH > 0 && totalH > maxH;
+                    <div className="mt-2 space-y-2 overflow-y-auto pr-1 min-h-0">
+                      {items.map(t => {
+                        const mine = (t.dev_task_assignees ?? []).some((a:Assignee)=>a.user_id===uid);
+                        const eff = effort[t.id] || { totalMin: 0, myMin: 0 };
+                        const totalH = Math.round((eff.totalMin/60) * 100) / 100;
+                        const myH = Math.round((eff.myMin/60) * 100) / 100;
+                        const maxH = Number(t.max_hours ?? 0);
+                        const pct = maxH > 0 ? Math.min(100, Math.round((totalH / maxH) * 100)) : 0;
+                        const over = maxH > 0 && totalH > maxH;
 
-                      return (
-                        <article
-                          key={t.id}
-                          draggable={groupBy==="status" && (isHead || mine)}
-                          onDragStart={(e)=>onDragStart(e, t.id)}
-                          className={cx(
-                            "rounded-xl border border-white/10 bg-gradient-to-br from-white/10 to-white/[0.02] p-3 hover:border-white/20 transition",
-                            "shadow-sm",
-                            dragId===t.id && "opacity-60"
-                          )}
-                        >
-                          <div className="flex items-start gap-2">
-                            <button className="text-left w-full" onClick={()=>setOpenId(t.id)} title="Abrir detalhes">
-                              <div className="font-medium truncate">{t.title}</div>
-                              {t.description && <div className="text-xs text-white/60 mt-1 line-clamp-2">{t.description}</div>}
-                            </button>
-                            {groupBy==="status" && <QuickStatus task={t} />}
-                          </div>
-
-                          {maxH > 0 && (
-                            <div className="mt-2">
-                              <div className="w-full h-2 rounded bg-white/10 overflow-hidden">
-                                <div className={cx("h-full", over ? "bg-rose-300" : "bg-white")}
-                                     style={{ width: `${pct}%` }} />
-                              </div>
-                              <div className="mt-1 text-[11px] text-white/70">
-                                {totalH} / {maxH} h
-                                {myH > 0 && <span className="ml-2 opacity-80">(tu: {myH} h)</span>}
-                                {over && <span className="ml-2 text-rose-300 font-medium">• excedido</span>}
-                              </div>
+                        return (
+                          <article
+                            key={t.id}
+                            draggable={groupBy==="status" && (isHead || mine)}
+                            onDragStart={(e)=>onDragStart(e as any, t.id)}
+                            className="rounded-xl border border-white/10 bg-gradient-to-br from-white/10 to-white/[0.02] p-3 hover:border-white/20 transition shadow-sm"
+                          >
+                            <div className="flex items-start gap-2">
+                              <button className="text-left w-full min-w-0" onClick={()=>setOpenId(t.id)} title="Abrir detalhes">
+                                <div className="font-medium truncate">{t.title}</div>
+                                {t.description && <div className="text-xs text-white/60 mt-1 line-clamp-2">{t.description}</div>}
+                              </button>
+                              {groupBy==="status" && (
+                                <select
+                                  aria-label="Alterar estado"
+                                  disabled={!(isHead || mine)}
+                                  value={t.status}
+                                  onChange={async (e)=>{
+                                    const ns = e.target.value as DevTask["status"];
+                                    try {
+                                      await updateTask(t.id, { status: ns });
+                                      setTasks(prev => prev.map(p => p.id===t.id ? { ...p, status: ns } : p));
+                                      sound.play("success"); show("ok","Estado atualizado");
+                                    } catch (err:any) { sound.play("error"); show("err", err?.message ?? "Falha a atualizar estado"); }
+                                  }}
+                                  className="px-2 py-1 rounded text-[11px] border bg-white/10 border-white/20"
+                                >
+                                  {STATUSES.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
+                                </select>
+                              )}
                             </div>
-                          )}
 
-                          <div className="mt-2 flex items-center gap-2 flex-wrap text-[11px]">
-                            <span className="px-2 py-0.5 rounded-full bg-white/10">prio: {t.priority ?? "normal"}</span>
-                            <span className="px-2 py-0.5 rounded-full bg-white/10">estado: {t.status}</span>
-                            {mine && <span className="px-2 py-0.5 rounded-full bg-indigo-400/20 text-indigo-100">👤 tua</span>}
-                            {t.status === "done" && <span className="px-2 py-0.5 rounded-full bg-emerald-400/20 text-emerald-100">✔ concluída</span>}
-                          </div>
-
-                          <div className="mt-2 flex items-center gap-2">
-                            <button
-                              onClick={()=>startClock(t)}
-                              disabled={(!isHead && !mine) || t.status==="done"}
-                              className={cx("px-2 py-1 rounded text-xs",
-                                ((!isHead && !mine) || t.status==="done") ? "bg-white/5 text-white/40 cursor-not-allowed"
-                                                                          : "bg-white text-black hover:opacity-90")}
-                            >
-                              Clock
-                            </button>
-                            {groupBy!=="status" && (isHead || mine) && (
-                              <QuickStatus task={t} />
+                            {maxH > 0 && (
+                              <div className="mt-2">
+                                <div className="w-full h-2 rounded bg-white/10 overflow-hidden">
+                                  <div className={cx("h-full", over ? "bg-rose-300" : "bg-white")}
+                                        style={{ width: `${pct}%` }} />
+                                </div>
+                                <div className="mt-1 text-[11px] text-white/70">
+                                  {totalH} / {maxH} h
+                                  {myH > 0 && <span className="ml-2 opacity-80">(tu: {myH} h)</span>}
+                                  {over && <span className="ml-2 text-rose-300 font-medium">• excedido</span>}
+                                </div>
+                              </div>
                             )}
-                          </div>
-                        </article>
-                      );
-                    })}
-                    {items.length===0 && <div className="text-xs text-white/60">Sem tarefas.</div>}
+
+                            <div className="mt-2 flex items-center gap-2 flex-wrap text-[11px]">
+                              <span className="px-2 py-0.5 rounded-full bg-white/10">prio: {t.priority ?? "normal"}</span>
+                              <span className="px-2 py-0.5 rounded-full bg-white/10">estado: {t.status}</span>
+                              {mine && <span className="px-2 py-0.5 rounded-full bg-indigo-400/20 text-indigo-100">👤 tua</span>}
+                              {t.status === "done" && <span className="px-2 py-0.5 rounded-full bg-emerald-400/20 text-emerald-100">✔ concluída</span>}
+                            </div>
+
+                            <div className="mt-2 flex items-center gap-2">
+                              <button
+                                onClick={()=>startClock(t)}
+                                disabled={(!isHead && !mine) || t.status==="done"}
+                                className={cx("px-2 py-1 rounded text-xs",
+                                  ((!isHead && !mine) || t.status==="done") ? "bg-white/5 text-white/40 cursor-not-allowed"
+                                                                            : "bg-white text-black hover:opacity-90")}
+                              >
+                                Clock
+                              </button>
+                              {groupBy!=="status" && (isHead || mine) && (
+                                <select
+                                  aria-label="Alterar estado"
+                                  value={t.status}
+                                  onChange={async (e)=>{
+                                    const ns = e.target.value as DevTask["status"];
+                                    try {
+                                      await updateTask(t.id, { status: ns });
+                                      setTasks(prev => prev.map(p => p.id===t.id ? { ...p, status: ns } : p));
+                                      sound.play("success"); show("ok","Estado atualizado");
+                                    } catch (err:any) { sound.play("error"); show("err", err?.message ?? "Falha a atualizar estado"); }
+                                  }}
+                                  className="px-2 py-1 rounded text-[11px] border bg-white/10 border-white/20"
+                                >
+                                  {STATUSES.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
+                                </select>
+                              )}
+                            </div>
+                          </article>
+                        );
+                      })}
+                      {items.length===0 && <div className="text-xs text-white/60">Sem tarefas.</div>}
+                    </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </section>
-
-      {/* Drawer Detalhes */}
-      {openTask && (
-        <>
-          <div className="fixed inset-0 z-40 bg-black/40" onClick={()=>setOpenId(null)} />
-          <aside className="fixed right-0 top-0 bottom-0 z-50 w-[min(92vw,620px)] bg-[#0b0b0c] border-l border-white/10 p-4 overflow-y-auto">
-            <div className="flex items-center justify-between">
-              <h3 className="font-semibold">Tarefa</h3>
-              <button onClick={()=>setOpenId(null)} className="px-2 py-1 rounded bg-white/10">Fechar</button>
+                );
+              })}
             </div>
-            <div className="mt-3 space-y-3">
-              <div>
-                <label className="text-xs text-white/60">Título</label>
-                <input
-                  defaultValue={openTask.title}
-                  onBlur={async (e)=>{
-                    const val = e.target.value.trim();
-                    if (val && val !== openTask.title) {
-                      try { await updateTask(openTask.id, { title: val }); sound.play("success"); show("ok","Título atualizado"); }
-                      catch(e:any){ sound.play("error"); show("err", e?.message ?? "Falha a atualizar título"); }
-                    }
-                  }}
-                  className="w-full rounded-lg bg-black/30 border border-white/10 p-2 outline-none"
-                />
-              </div>
-              <div>
-                <label className="text-xs text-white/60">Descrição</label>
-                <textarea
-                  defaultValue={openTask.description ?? ""}
-                  rows={4}
-                  onBlur={async (e)=>{
-                    try { await updateTask(openTask.id, { description: e.target.value }); sound.play("success"); show("ok","Descrição atualizada"); }
-                    catch(e:any){ sound.play("error"); show("err", e?.message ?? "Falha a atualizar descrição"); }
-                  }}
-                  className="w-full rounded-lg bg-black/30 border border-white/10 p-2 outline-none"
-                />
-              </div>
+          </div>
+        </section>
 
-              <div className="grid grid-cols-3 gap-2">
+        {/* Drawer Detalhes */}
+        {openTask && (
+          <>
+            <div className="fixed inset-0 z-40 bg-black/40" onClick={()=>setOpenId(null)} />
+            <aside className="fixed right-0 top-0 bottom-0 z-50 w-[min(92vw,620px)] bg-[#0b0b0c] border-l border-white/10 p-4 overflow-y-auto">
+              <div className="flex items-center justify-between">
+                <h3 className="font-semibold">Tarefa</h3>
+                <button onClick={()=>setOpenId(null)} className="px-2 py-1 rounded bg-white/10">Fechar</button>
+              </div>
+              <div className="mt-3 space-y-3">
                 <div>
-                  <label className="text-xs text-white/60">Estado</label>
-                  <select
-                    defaultValue={openTask.status}
-                    onChange={async (e)=>{
-                      try { await updateTask(openTask.id, { status: e.target.value as DevTask["status"] }); sound.play("success"); show("ok","Estado atualizado"); }
-                      catch(e:any){ sound.play("error"); show("err", e?.message ?? "Falha a atualizar estado"); }
-                    }}
-                    className="w-full mt-1 rounded-lg bg-black/30 border border-white/10 p-2"
-                  >
-                    {STATUSES.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="text-xs text-white/60">Prioridade</label>
-                  <select
-                    defaultValue={openTask.priority ?? "normal"}
-                    onChange={async (e)=>{
-                      try { await updateTask(openTask.id, { priority: e.target.value as DevTask["priority"] }); sound.play("success"); show("ok","Prioridade atualizada"); }
-                      catch(e:any){ sound.play("error"); show("err", e?.message ?? "Falha a atualizar prioridade"); }
-                    }}
-                    className="w-full mt-1 rounded-lg bg-black/30 border border-white/10 p-2"
-                  >
-                    {PRIORITIES.map(p => <option key={p} value={p}>{p}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="text-xs text-white/60">Horas máx</label>
+                  <label className="text-xs text-white/60">Título</label>
                   <input
-                    type="number" min={0} step={0.5} defaultValue={Number(openTask.max_hours ?? 0)}
+                    defaultValue={openTask.title}
                     onBlur={async (e)=>{
-                      const v = Number(e.target.value);
-                      if (!Number.isFinite(v)) return;
-                      try { await updateTask(openTask.id, { max_hours: v }); sound.play("success"); show("ok","Horas máx atualizadas"); }
-                      catch(e:any){ sound.play("error"); show("err", e?.message ?? "Falha a atualizar"); }
+                      const val = e.target.value.trim();
+                      if (val && val !== openTask.title) {
+                        try { await updateTask(openTask.id, { title: val }); sound.play("success"); show("ok","Título atualizado"); }
+                        catch(e:any){ sound.play("error"); show("err", e?.message ?? "Falha a atualizar título"); }
+                      }
                     }}
-                    className="w-full mt-1 rounded-lg bg-black/30 border border-white/10 p-2"
+                    className="w-full rounded-lg bg-black/30 border border-white/10 p-2 outline-none"
                   />
                 </div>
-              </div>
-
-              {/* Atribuições */}
-              <div>
-                <label className="text-xs text-white/60 block mb-1">Atribuições</label>
-                {isHead ? (
-                  <UserPicker
-                    value={(openTask.dev_task_assignees ?? []).map((a:Assignee)=>({
-                      id: a.user_id,
-                      name: allUsers.find(u=>u.id===a.user_id)?.name || a.user_id
-                    }))}
-                    myself={uid}
-                    onToggle={async (u, has) => {
-                      try {
-                        await assignTask(openTask.id, u.id, has ? "remove" : "add");
-                        sound.play("success"); show("ok", has ? "Removido" : "Atribuído");
-                      } catch (e:any) { sound.play("error"); show("err","Falha a atribuir"); }
+                <div>
+                  <label className="text-xs text-white/60">Descrição</label>
+                  <textarea
+                    defaultValue={openTask.description ?? ""}
+                    rows={4}
+                    onBlur={async (e)=>{
+                      try { await updateTask(openTask.id, { description: e.target.value }); sound.play("success"); show("ok","Descrição atualizada"); }
+                      catch(e:any){ sound.play("error"); show("err", e?.message ?? "Falha a atualizar descrição"); }
                     }}
+                    className="w-full rounded-lg bg-black/30 border border-white/10 p-2 outline-none"
                   />
-                ) : (
-                  <div className="flex flex-wrap gap-1">
-                    {(openTask.dev_task_assignees ?? []).map((a:Assignee) => {
-                      const u = allUsers.find(x => x.id === a.user_id);
-                      return <span key={a.user_id} className="px-2 py-0.5 rounded bg-white/10 text-xs">
-                        {shortName(u?.name || u?.email || a.user_id)}
-                      </span>;
-                    })}
-                    {(openTask.dev_task_assignees ?? []).length===0 && <span className="text-sm text-white/60">Sem atribuição</span>}
+                </div>
+
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <label className="text-xs text-white/60">Estado</label>
+                    <select
+                      defaultValue={openTask.status}
+                      onChange={async (e)=>{
+                        try { await updateTask(openTask.id, { status: e.target.value as DevTask["status"] }); sound.play("success"); show("ok","Estado atualizado"); }
+                        catch(e:any){ sound.play("error"); show("err", e?.message ?? "Falha a atualizar estado"); }
+                      }}
+                      className="w-full mt-1 rounded-lg bg-black/30 border border-white/10 p-2"
+                    >
+                      {STATUSES.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
+                    </select>
                   </div>
-                )}
-              </div>
-
-              {/* Ações rápidas */}
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={()=>startClock(openTask)}
-                  disabled={(!isHead && !(openTask.dev_task_assignees ?? []).some((a:Assignee)=>a.user_id===uid)) || openTask.status==="done"}
-                  className={cx("px-3 py-2 rounded-lg text-sm",
-                    ((!isHead && !(openTask.dev_task_assignees ?? []).some((a:Assignee)=>a.user_id===uid)) || openTask.status==="done")
-                      ? "bg-white/5 text-white/40 cursor-not-allowed"
-                      : "bg-white text-black")}
-                >
-                  Clock nesta tarefa
-                </button>
-                {session && session.task_id === openTask.id && (
-                  <>
-                    <button onClick={renewClock} className="px-3 py-2 rounded-lg bg-white text-black text-sm">Renovar</button>
-                    <button onClick={stopClock} className="px-3 py-2 rounded-lg bg-white/10 border border-white/10 text-sm">Terminar</button>
-                  </>
-                )}
-              </div>
-            </div>
-          </aside>
-        </>
-      )}
-
-      {/* Nova Tarefa */}
-      {newOpen && isHead && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-black/60">
-          <div className="w-[min(92vw,640px)] rounded-2xl border border-white/10 bg-[#0b0b0c] p-4">
-            <div className="flex items-center justify-between">
-              <h3 className="font-semibold">Nova Tarefa</h3>
-              <button onClick={()=>setNewOpen(false)} className="px-2 py-1 rounded bg-white/10">Fechar</button>
-            </div>
-            <div className="mt-3 space-y-3">
-              <input value={newTitle} onChange={e=>setNewTitle(e.target.value)} placeholder="Título"
-                     className="w-full rounded-lg bg-black/30 border border-white/10 p-2 outline-none" />
-              <textarea value={newDesc} onChange={e=>setNewDesc(e.target.value)} rows={4} placeholder="Descrição"
-                        className="w-full rounded-lg bg-black/30 border border-white/10 p-2 outline-none" />
-              <div className="grid grid-cols-3 gap-2">
-                <div>
-                  <label className="text-xs text-white/60">Prioridade</label>
-                  <select value={newPriority} onChange={e=>setNewPriority(e.target.value as any)}
-                          className="w-full mt-1 rounded-lg bg-black/30 border border-white/10 p-2">
-                    {PRIORITIES.map(p => <option key={p} value={p}>{p}</option>)}
-                  </select>
+                  <div>
+                    <label className="text-xs text-white/60">Prioridade</label>
+                    <select
+                      defaultValue={openTask.priority ?? "normal"}
+                      onChange={async (e)=>{
+                        try { await updateTask(openTask.id, { priority: e.target.value as DevTask["priority"] }); sound.play("success"); show("ok","Prioridade atualizada"); }
+                        catch(e:any){ sound.play("error"); show("err", e?.message ?? "Falha a atualizar prioridade"); }
+                      }}
+                      className="w-full mt-1 rounded-lg bg-black/30 border border-white/10 p-2"
+                    >
+                      {PRIORITIES.map(p => <option key={p} value={p}>{p}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs text-white/60">Horas máx</label>
+                    <input
+                      type="number" min={0} step={0.5} defaultValue={Number(openTask.max_hours ?? 0)}
+                      onBlur={async (e)=>{
+                        const v = Number(e.target.value);
+                        if (!Number.isFinite(v)) return;
+                        try { await updateTask(openTask.id, { max_hours: v }); sound.play("success"); show("ok","Horas máx atualizadas"); }
+                        catch(e:any){ sound.play("error"); show("err", e?.message ?? "Falha a atualizar"); }
+                      }}
+                      className="w-full mt-1 rounded-lg bg-black/30 border border-white/10 p-2"
+                    />
+                  </div>
                 </div>
+
                 <div>
-                  <label className="text-xs text-white/60">Horas máx</label>
-                  <input type="number" min={0} step={0.5} value={newMaxH} onChange={e=>setNewMaxH(Number(e.target.value))}
-                         className="w-full mt-1 rounded-lg bg-black/30 border border-white/10 p-2" />
+                  <label className="text-xs text-white/60 block mb-1">Atribuições</label>
+                  {isHead ? (
+                    <UserPicker
+                      value={(openTask.dev_task_assignees ?? []).map((a:Assignee)=>({
+                        id: a.user_id,
+                        name: allUsers.find(u=>u.id===a.user_id)?.name || a.user_id
+                      }))}
+                      myself={uid}
+                      onToggle={async (u, has) => {
+                        try {
+                          await assignTask(openTask.id, u.id, has ? "remove" : "add");
+                          sound.play("success"); show("ok", has ? "Removido" : "Atribuído");
+                          refreshTasks();
+                        } catch (e:any) { sound.play("error"); show("err","Falha a atribuir"); }
+                      }}
+                    />
+                  ) : (
+                    <div className="flex flex-wrap gap-1">
+                      {(openTask.dev_task_assignees ?? []).map((a:Assignee) => {
+                        const u = allUsers.find(x => x.id === a.user_id);
+                        return <span key={a.user_id} className="px-2 py-0.5 rounded bg-white/10 text-xs">
+                          {shortName(u?.name || u?.email || a.user_id)}
+                        </span>;
+                      })}
+                      {(openTask.dev_task_assignees ?? []).length===0 && <span className="text-sm text-white/60">Sem atribuição</span>}
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={()=>startClock(openTask)}
+                    disabled={(!isHead && !(openTask.dev_task_assignees ?? []).some((a:Assignee)=>a.user_id===uid)) || openTask.status==="done"}
+                    className={cx("px-3 py-2 rounded-lg text-sm",
+                      ((!isHead && !(openTask.dev_task_assignees ?? []).some((a:Assignee)=>a.user_id===uid)) || openTask.status==="done")
+                        ? "bg-white/5 text-white/40 cursor-not-allowed"
+                        : "bg-white text-black")}
+                  >
+                    Clock nesta tarefa
+                  </button>
+                  {session && session.task_id === openTask.id && (
+                    <>
+                      <button onClick={renewClock} className="px-3 py-2 rounded-lg bg-white text-black text-sm">Renovar</button>
+                      <button onClick={stopClock} className="px-3 py-2 rounded-lg bg-white/10 border border-white/10 text-sm">Terminar</button>
+                    </>
+                  )}
                 </div>
               </div>
-              <div className="flex items-center justify-end gap-2">
-                <button onClick={()=>setNewOpen(false)} className="px-3 py-2 rounded-lg bg-white/10 border border-white/10">Cancelar</button>
-                <button onClick={onCreateTask} className="px-3 py-2 rounded-lg bg-white text-black">Criar</button>
+            </aside>
+          </>
+        )}
+
+        {/* Nova Tarefa */}
+        {newOpen && isHead && (
+          <div className="fixed inset-0 z-50 grid place-items-center bg-black/60">
+            <div className="w-[min(92vw,640px)] rounded-2xl border border-white/10 bg-[#0b0b0c] p-4">
+              <div className="flex items-center justify-between">
+                <h3 className="font-semibold">Nova Tarefa</h3>
+                <button onClick={()=>setNewOpen(false)} className="px-2 py-1 rounded bg-white/10">Fechar</button>
+              </div>
+              <div className="mt-3 space-y-3">
+                <input value={newTitle} onChange={e=>setNewTitle(e.target.value)} placeholder="Título"
+                      className="w-full rounded-lg bg-black/30 border border-white/10 p-2 outline-none" />
+                <textarea value={newDesc} onChange={e=>setNewDesc(e.target.value)} rows={4} placeholder="Descrição"
+                          className="w-full rounded-lg bg-black/30 border border-white/10 p-2 outline-none" />
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <label className="text-xs text-white/60">Prioridade</label>
+                    <select value={newPriority} onChange={e=>setNewPriority(e.target.value as any)}
+                            className="w-full mt-1 rounded-lg bg-black/30 border border-white/10 p-2">
+                      {PRIORITIES.map(p => <option key={p} value={p}>{p}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs text-white/60">Horas máx</label>
+                    <input type="number" min={0} step={0.5} value={newMaxH} onChange={e=>setNewMaxH(Number(e.target.value))}
+                          className="w-full mt-1 rounded-lg bg-black/30 border border-white/10 p-2" />
+                  </div>
+                </div>
+                <div className="flex items-center justify-end gap-2">
+                  <button onClick={()=>setNewOpen(false)} className="px-3 py-2 rounded-lg bg-white/10 border border-white/10">Cancelar</button>
+                  <button onClick={onCreateTask} className="px-3 py-2 rounded-lg bg-white text-black">Criar</button>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {err && <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-rose-200">{err}</div>}
+        {err && <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-rose-200">{err}</div>}
+      </div>
+      <Toasts items={toasts} />
     </div>
   );
 }
