@@ -42,19 +42,18 @@ const isGestao = (perms?: Perms | null) => has(perms, "ftw.management.all");
 
 /** ACL por rota (prefix match) */
 const ACL: Record<string, string[] | "staff"> = {
-  "/admin": "staff", // qualquer staff entra no painel
-  "/admin/devleaders": "staff", // qualquer staff entra no painel
-  "/admin/devwork": ["group.ftw_dev","ftw.dev.head","ftw.management.all"],     // <-- NOVO
+  "/admin": "staff",
+  "/admin/devleaders": "staff",
+  "/admin/devwork": ["group.ftw_dev","ftw.dev.head","ftw.management.all"],
   "/admin/players": ["ftw.supervise.basic","ftw.supervise.advanced","ftw.admin.basic","ftw.admin.senior","ftw.admin.head","ftw.management.all"],
   "/admin/txadmin": ["ftw.admin.senior","ftw.admin.head","ftw.management.all"],
   "/admin/candidaturas": ["ftw.support.read","ftw.support.manage","ftw.admin.basic","ftw.management.all"],
   "/admin/logs": ["ftw.admin.basic","ftw.admin.senior","ftw.admin.head","ftw.management.all"],
-  "/admin/imagens": ["ftw.dev","group.ftw_dev","ftw.management.all"],     // devs ou gestão
-  "/admin/resources": ["ftw.dev","group.ftw_dev","ftw.management.all"],   // devs ou gestão
+  "/admin/imagens": ["ftw.dev","group.ftw_dev","ftw.management.all"],
+  "/admin/resources": ["ftw.dev","group.ftw_dev","ftw.management.all"],
 };
 
 function requiredForPath(pathname: string): string[] | "staff" {
-  // escolhe o prefixo mais longo que dê match
   const key = Object.keys(ACL)
     .filter(k => pathname === k || pathname.startsWith(k + "/"))
     .sort((a,b) => b.length - a.length)[0];
@@ -62,50 +61,49 @@ function requiredForPath(pathname: string): string[] | "staff" {
 }
 
 function canAccess(perms: Perms | null | undefined, pathname: string): boolean {
-  if (isGestao(perms)) return true; // gestão entra em tudo
+  if (isGestao(perms)) return true;
   const need = requiredForPath(pathname);
   if (need === "staff") return isStaffByPerms(perms);
   return hasAny(perms, need);
 }
 
-/* Hook: obter perms do utilizador atual */
+/* --- Hook: obter perms do utilizador atual (sem revalidar em cada foco de aba) --- */
 function useStaffPerms() {
-  const [perms, setPerms] = useState<Perms | null>(null);
+  const [perms, setPerms] = useState<Perms | null>(() => {
+    try { return JSON.parse(sessionStorage.getItem("admin:perms") || "null"); } catch { return null; }
+  });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let alive = true;
-    (async () => {
+
+    const load = async () => {
       try {
         const { data: { user } } = await supabase.auth.getUser();
-        if (!user) { if (alive) { setPerms(null); setLoading(false); } return; }
-
-        const { data, error } = await supabase
-          .from("staff_perms")
-          .select("perms")
-          .eq("user_id", user.id)
-          .maybeSingle();
-
         if (!alive) return;
-        if (error) { console.warn("staff_perms error:", error); setPerms(null); }
-        else setPerms((data?.perms as string[]) ?? []);
+        if (!user) { setPerms(null); sessionStorage.removeItem("admin:perms"); return; }
+        const { data, error } = await supabase.from("staff_perms").select("perms").eq("user_id", user.id).maybeSingle();
+        if (!alive) return;
+        const prms = (error ? [] : (data?.perms as string[]) ?? []);
+        setPerms(prms);
+        sessionStorage.setItem("admin:perms", JSON.stringify(prms));
       } finally {
         if (alive) setLoading(false);
       }
-    })();
+    };
 
-    // se a sessão mudar, volta a carregar
-    const sub = supabase.auth.onAuthStateChange((_e, _s) => {
+    // primeira carga
+    load();
+
+    // só reage a eventos relevantes (ignora TOKEN_REFRESHED em foco/blur)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (!["SIGNED_IN", "SIGNED_OUT", "USER_UPDATED"].includes(event)) return;
       setLoading(true);
-      supabase.auth.getUser().then(async ({ data: { user } }) => {
-        if (!user) { setPerms(null); setLoading(false); return; }
-        const { data } = await supabase.from("staff_perms").select("perms").eq("user_id", user.id).maybeSingle();
-        setPerms((data?.perms as string[]) ?? []);
-        setLoading(false);
-      });
+      sessionStorage.removeItem("admin:perms");
+      load();
     });
 
-    return () => { alive = false; sub.data.subscription.unsubscribe(); };
+    return () => { alive = false; subscription.unsubscribe(); };
   }, []);
 
   return { perms, loading };
@@ -117,28 +115,41 @@ function useAdminGuard() {
   const location = useLocation();
   const [ready, setReady] = useState(false);
   const { perms, loading } = useStaffPerms();
+  const sessionCheckedRef = useRef(false);
 
   useEffect(() => {
+    let mounted = true;
     (async () => {
-      const { data } = await supabase.auth.getSession();
-      if (!data.session) {
-        navigate("/admin/login", { replace: true });
-        setReady(true);
-        return;
-      }
-      // espera pelas perms para decidir
-      if (!loading) {
-        if (!isStaffByPerms(perms)) {
-          // não tem qualquer staff → fora
-          navigate("/auth", { replace: true });
-        } else if (!canAccess(perms, location.pathname)) {
-          // tem staff mas não tem direito a esta rota → manda para /admin
-          navigate("/admin", { replace: true });
+      // verifica sessão **uma única vez** por mount
+      if (!sessionCheckedRef.current) {
+        const { data } = await supabase.auth.getSession();
+        if (!mounted) return;
+        if (!data.session) {
+          if (location.pathname !== "/admin/login") navigate("/admin/login", { replace: true });
+          setReady(true);
+          sessionCheckedRef.current = true;
+          return;
         }
-        setReady(true);
+        sessionCheckedRef.current = true;
       }
+
+      if (loading) return;
+
+      // ACL com navegação defensiva (não navega para o mesmo path)
+      const go = (to: string) => {
+        if (location.pathname !== to) navigate(to, { replace: true });
+      };
+
+      if (!isStaffByPerms(perms)) {
+        go("/auth");
+      } else if (!canAccess(perms, location.pathname)) {
+        go("/admin");
+      }
+
+      if (mounted) setReady(true);
     })();
-  }, [navigate, location.pathname, perms, loading]);
+    return () => { mounted = false; };
+  }, [loading, perms, location.pathname, navigate]);
 
   return { ready, perms, loading };
 }
@@ -489,7 +500,7 @@ export default function AdminLayout() {
   useEffect(() => { supabase.auth.getUser().then(({ data }) => setEmail(data.user?.email ?? null)); }, []);
   const onLogout = async () => { await supabase.auth.signOut(); navigate("/admin/login", { replace: true }); };
 
-  // Navegação com ACL por item
+  // Navegação com ACL por item (corrigido /admin/devwork)
   const nav = useMemo(() => {
     const all = [
       { to: "/admin", label: "Dashboard", icon: Icon.Home, exact: true, need: "staff" as const },
@@ -500,10 +511,8 @@ export default function AdminLayout() {
       { to: "/admin/imagens", label: "Imagens", icon: Icon.Image, need: ACL["/admin/imagens"] as string[] },
       { to: "/admin/resources", label: "Recursos", icon: Icon.Image, need: ACL["/admin/resources"] as string[] },
       { to: "/admin/devleaders", label: "Dev Leaders", icon: Icon.Image, need: ACL["/admin/devleaders"] as string[] },
-      { to: "/admin/devwork", label: "Dev Work", icon: Icon.Clipboard, need: ACL["/admin/dev"] as string[] },
-
+      { to: "/admin/devwork", label: "Dev Work", icon: Icon.Clipboard, need: ACL["/admin/devwork"] as string[] },
     ];
-    // Gestão vê tudo; caso contrário, filtra por permissão
     if (isGestao(perms)) return all;
     return all.filter(i => (i.need === "staff" ? isStaffByPerms(perms) : hasAny(perms, i.need)));
   }, [perms]);
@@ -536,7 +545,7 @@ export default function AdminLayout() {
           <h1 className="text-sm md:text-base font-semibold">Painel de Administração</h1>
         </div>
 
-        {/* Pesquisa global (abre palette) */}
+        {/* Pesquisa global */}
         <div className="hidden md:flex items-center flex-1 max-w-xl mx-3">
           <button onClick={()=>setPaletteOpen(true)} className="group relative w-full text-left">
             <div className="relative w-full">

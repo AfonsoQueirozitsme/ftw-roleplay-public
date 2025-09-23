@@ -1,6 +1,6 @@
 // src/admin/DevWork.tsx
-// VIEWPORT LOCK + BOARD ISOLADO: scroll horizontal só no board, header/clock SEM overflow.
-// Inclui DnD por estado, progress mm:ss, cache de clock, realtime e user picker.
+// Layout estável (sem overflow global), board com scroll horizontal isolado,
+// colunas com scroll vertical, drawer estável, DnD por estado, clock com cache.
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
@@ -75,11 +75,12 @@ function useDebounce<T>(val:T, ms=250) {
   useEffect(()=>{ const id=setTimeout(()=>setV(val), ms); return ()=>clearTimeout(id); }, [val, ms]);
   return v;
 }
+type StaffChip = { id: string; name: string };
 
 function UserPicker({
   value, onToggle, myself,
 }:{
-  value: { id: string; name: string }[];
+  value: StaffChip[];
   onToggle: (u: StaffUser, has: boolean)=>Promise<void>|void;
   myself?: string|null;
 }) {
@@ -260,9 +261,9 @@ export default function DevWork() {
     } catch (e:any) { sound.play("error"); show("err", e?.message ?? "Falha a criar"); }
   }
 
-  // drawer
+  // drawer (NÃO depende de 'visible' para não fechar sozinho)
   const [openId, setOpenId] = useState<string|null>(null);
-  const openTask = visible.find(t => t.id === openId) || null;
+  const openTask = tasks.find(t => t.id === openId) || null;
 
   // CLOCK + cache + progress mm:ss
   const [session, setSession] = useState<Session|null>(null);
@@ -362,7 +363,7 @@ export default function DevWork() {
     } catch (e:any) { sound.play("error"); show("err", e?.message ?? "Falha ao terminar"); }
   }
 
-  // DnD por estado
+  // DnD por estado (sem sombras/bugs)
   const [dragId, setDragId] = useState<string|null>(null);
   const [dragCol, setDragCol] = useState<string|null>(null);
   const isStatusGrouping = groupBy === "status";
@@ -393,12 +394,13 @@ export default function DevWork() {
     } catch (e:any) { sound.play("error"); show("err", e?.message ?? "Falha ao mover"); }
   }
 
-  // ⬇⬇⬇ LAYOUT FIX: viewport lock + scroll só no board/colunas
+  // LAYOUT ROOT — **sem fixed/overflow global**
   return (
-    <div className="fixed inset-0 bg-[#0b0b0c] text-white">
-      <div className="h-full w-full overflow-hidden grid grid-rows-[auto,auto,1fr] gap-4 p-4 box-border">
+    <div className="min-h-screen bg-[#0b0b0c] text-white">
+      <Toasts items={toasts} />
+      <div className="grid grid-rows-[auto,auto,1fr] gap-4 p-4 max-w-[1600px] mx-auto overflow-x-hidden">
 
-        {/* HEADER (fica sempre na viewport) */}
+        {/* HEADER */}
         <header className="rounded-3xl border border-white/10 bg-gradient-to-r from-indigo-600/25 via-fuchsia-600/20 to-rose-600/25 p-4 flex items-center justify-between shadow-lg min-w-0">
           <div className="flex items-center gap-3 min-w-0">
             <div className="h-10 w-10 rounded-xl bg-white text-black grid place-items-center font-bold shadow shrink-0">
@@ -424,7 +426,7 @@ export default function DevWork() {
           </div>
         </header>
 
-        {/* CLOCK (também fixo ao viewport; sem horizontal scroll) */}
+        {/* CLOCK */}
         <section className="rounded-2xl border border-white/10 bg-white/5 p-4 min-w-0">
           <div className="flex items-center justify-between">
             <div className="font-semibold flex items-center gap-2">
@@ -478,26 +480,21 @@ export default function DevWork() {
           )}
         </section>
 
-        {/* BOARD (ocupa o resto; SÓ ele tem scroll horizontal; cada coluna scrolla em Y) */}
+        {/* BOARD — ocupa o resto; scroll X só aqui; Y dentro da coluna */}
         <section className="rounded-2xl border border-white/10 bg-white/5 min-h-0 min-w-0">
-          <div
-            className="h-full w-full overflow-x-auto overflow-y-hidden"
-            style={{ overscrollBehaviorX: "contain" }}
-          >
-            <div
-              className="h-full grid grid-flow-col auto-cols-[minmax(300px,360px)] gap-3 p-3"
-            >
+          <div className="h-full w-full overflow-x-auto overflow-y-hidden" style={{ overscrollBehaviorX: "contain" }}>
+            <div className="h-full grid grid-flow-col auto-cols-[minmax(300px,360px)] gap-3 p-3">
               {columns.map(col => {
                 const items = visible.filter(col.filter);
-                const [dragId, setDragId] = [undefined, undefined]; // só para TypeScript não chatear aqui
                 return (
                   <div
                     key={col.key}
-                    onDragOver={(e)=>onDragOverCol(e as any, col.key)}
-                    onDrop={(e)=>onDropCol(e as any, col.key)}
+                    onDragOver={(e)=>onDragOverCol(e, col.key)}
+                    onDrop={(e)=>onDropCol(e, col.key)}
                     className={cx(
                       "rounded-2xl border bg-white/[0.03] p-3 flex flex-col min-w-0 h-full",
-                      "border-white/10 hover:border-white/20 transition"
+                      "border-white/10 transition",
+                      isStatusGrouping && dragCol===col.key && "border-emerald-400/50"
                     )}
                   >
                     <div className="flex items-center justify-between">
@@ -521,7 +518,7 @@ export default function DevWork() {
                           <article
                             key={t.id}
                             draggable={groupBy==="status" && (isHead || mine)}
-                            onDragStart={(e)=>onDragStart(e as any, t.id)}
+                            onDragStart={(e)=>onDragStart(e, t.id)}
                             className="rounded-xl border border-white/10 bg-gradient-to-br from-white/10 to-white/[0.02] p-3 hover:border-white/20 transition shadow-sm"
                           >
                             <div className="flex items-start gap-2">
@@ -553,7 +550,7 @@ export default function DevWork() {
                               <div className="mt-2">
                                 <div className="w-full h-2 rounded bg-white/10 overflow-hidden">
                                   <div className={cx("h-full", over ? "bg-rose-300" : "bg-white")}
-                                        style={{ width: `${pct}%` }} />
+                                       style={{ width: `${pct}%` }} />
                                 </div>
                                 <div className="mt-1 text-[11px] text-white/70">
                                   {totalH} / {maxH} h
@@ -610,7 +607,7 @@ export default function DevWork() {
           </div>
         </section>
 
-        {/* Drawer Detalhes */}
+        {/* Drawer Detalhes (independe de filters, não "desaparece") */}
         {openTask && (
           <>
             <div className="fixed inset-0 z-40 bg-black/40" onClick={()=>setOpenId(null)} />
@@ -695,7 +692,7 @@ export default function DevWork() {
                     <UserPicker
                       value={(openTask.dev_task_assignees ?? []).map((a:Assignee)=>({
                         id: a.user_id,
-                        name: allUsers.find(u=>u.id===a.user_id)?.name || a.user_id
+                        name: shortName(allUsers.find(u=>u.id===a.user_id)?.name || allUsers.find(u=>u.id===a.user_id)?.email || a.user_id)
                       }))}
                       myself={uid}
                       onToggle={async (u, has) => {
@@ -752,7 +749,7 @@ export default function DevWork() {
               </div>
               <div className="mt-3 space-y-3">
                 <input value={newTitle} onChange={e=>setNewTitle(e.target.value)} placeholder="Título"
-                      className="w-full rounded-lg bg-black/30 border border-white/10 p-2 outline-none" />
+                       className="w-full rounded-lg bg-black/30 border border-white/10 p-2 outline-none" />
                 <textarea value={newDesc} onChange={e=>setNewDesc(e.target.value)} rows={4} placeholder="Descrição"
                           className="w-full rounded-lg bg-black/30 border border-white/10 p-2 outline-none" />
                 <div className="grid grid-cols-3 gap-2">
@@ -766,7 +763,7 @@ export default function DevWork() {
                   <div>
                     <label className="text-xs text-white/60">Horas máx</label>
                     <input type="number" min={0} step={0.5} value={newMaxH} onChange={e=>setNewMaxH(Number(e.target.value))}
-                          className="w-full mt-1 rounded-lg bg-black/30 border border-white/10 p-2" />
+                           className="w-full mt-1 rounded-lg bg-black/30 border border-white/10 p-2" />
                   </div>
                 </div>
                 <div className="flex items-center justify-end gap-2">
@@ -780,7 +777,6 @@ export default function DevWork() {
 
         {err && <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-rose-200">{err}</div>}
       </div>
-      <Toasts items={toasts} />
     </div>
   );
 }
