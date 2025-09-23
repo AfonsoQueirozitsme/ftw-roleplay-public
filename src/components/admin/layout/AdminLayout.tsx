@@ -16,7 +16,7 @@ const Icon = {
   Image: (p: any) => (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...p}><rect x="3" y="3" width="18" height="18" rx="2" strokeWidth="2"/><circle cx="8.5" cy="8.5" r="1.5" strokeWidth="2"/><path d="m21 15-5-5L5 21" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>),
   Logs: (p: any) => (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...p}><path strokeWidth="2" d="M3 5h18M3 12h18M3 19h18"/><path strokeWidth="2" d="M8 5v14"/></svg>),
   ChevronLeft: (p: any) => (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...p}><path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="m15 18-6-6 6-6"/></svg>),
-  ChevronRight: (p: any) => (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...p}><path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="m9 18 6-6-6-6"/></svg>),
+  ChevronRight: (p: any) => (<svg viewBox="0 0 24 24  fill="none" stroke="currentColor" {...p}><path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="m9 18 6-6-6-6"/></svg>),
   Logout: (p: any) => (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...p}><path strokeWidth="2" d="M15 3h4a2 2 0 0 1 2 2v3"/><path strokeWidth="2" d="M10 7 5 12l5 5"/><path strokeWidth="2" d="M5 12h13"/></svg>),
   External: (p: any) => (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...p}><path d="M14 3h7v7" strokeWidth="2"/><path d="M10 14 21 3" strokeWidth="2"/><path d="M5 7v11a2 2 0 0 0 2 2h11" strokeWidth="2"/></svg>),
 };
@@ -31,6 +31,15 @@ const getInitials = (s?: string | null) =>
 
 /* ---------------- Permissões (staff) ---------------- */
 type Perms = string[];
+const PERMS_CACHE_KEY = "admin:perms_cache_v1";
+const PERMS_TTL_MS = 48 * 60 * 60 * 1000; // 48h
+
+type PermsCache = { user_id: string; perms: string[]; cached_at: number };
+const readPermsCache = (): PermsCache | null => {
+  try { return JSON.parse(localStorage.getItem(PERMS_CACHE_KEY) || "null"); } catch { return null; }
+};
+const writePermsCache = (v: PermsCache) => { try { localStorage.setItem(PERMS_CACHE_KEY, JSON.stringify(v)); } catch {} };
+const clearPermsCache = () => { try { localStorage.removeItem(PERMS_CACHE_KEY); } catch {} };
 
 const isStaffByPerms = (perms?: Perms | null) =>
   !!perms?.some(p => p.startsWith("ftw.") || p.startsWith("group.ftw_"));
@@ -67,43 +76,54 @@ function canAccess(perms: Perms | null | undefined, pathname: string): boolean {
   return hasAny(perms, need);
 }
 
-/* --- Hook: obter perms do utilizador atual (sem revalidar em cada foco de aba) --- */
+/* --- Hook: obter perms (uma validação por carga + cache 48h) --- */
 function useStaffPerms() {
-  const [perms, setPerms] = useState<Perms | null>(() => {
-    try { return JSON.parse(sessionStorage.getItem("admin:perms") || "null"); } catch { return null; }
-  });
+  const [perms, setPerms] = useState<Perms | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    let alive = true;
+    let cancelled = false;
 
-    const load = async () => {
+    (async () => {
       try {
         const { data: { user } } = await supabase.auth.getUser();
-        if (!alive) return;
-        if (!user) { setPerms(null); sessionStorage.removeItem("admin:perms"); return; }
-        const { data, error } = await supabase.from("staff_perms").select("perms").eq("user_id", user.id).maybeSingle();
-        if (!alive) return;
+        if (cancelled) return;
+
+        if (!user) {
+          setPerms(null);
+          clearPermsCache();
+          return;
+        }
+
+        // tenta cache 48h
+        const cached = readPermsCache();
+        const fresh = cached && cached.user_id === user.id && (Date.now() - cached.cached_at) < PERMS_TTL_MS;
+
+        if (fresh) {
+          setPerms(cached!.perms as string[]);
+          return;
+        }
+
+        // fetch uma vez
+        const { data, error } = await supabase
+          .from("staff_perms")
+          .select("perms")
+          .eq("user_id", user.id)
+          .maybeSingle();
+
+        if (cancelled) return;
+
         const prms = (error ? [] : (data?.perms as string[]) ?? []);
         setPerms(prms);
-        sessionStorage.setItem("admin:perms", JSON.stringify(prms));
+        writePermsCache({ user_id: user.id, perms: prms, cached_at: Date.now() });
       } finally {
-        if (alive) setLoading(false);
+        if (!cancelled) setLoading(false);
       }
-    };
+    })();
 
-    // primeira carga
-    load();
-
-    // só reage a eventos relevantes (ignora TOKEN_REFRESHED em foco/blur)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-      if (!["SIGNED_IN", "SIGNED_OUT", "USER_UPDATED"].includes(event)) return;
-      setLoading(true);
-      sessionStorage.removeItem("admin:perms");
-      load();
-    });
-
-    return () => { alive = false; subscription.unsubscribe(); };
+    // NÃO nos inscrevemos em onAuthStateChange (evita refresh ao focar a aba).
+    // Só limpamos cache no logout explícito (botão) ou se o utilizador mudar.
+    return () => { cancelled = true; };
   }, []);
 
   return { perms, loading };
@@ -113,32 +133,30 @@ function useStaffPerms() {
 function useAdminGuard() {
   const navigate = useNavigate();
   const location = useLocation();
-  const [ready, setReady] = useState(false);
   const { perms, loading } = useStaffPerms();
-  const sessionCheckedRef = useRef(false);
+  const [ready, setReady] = useState(false);
+  const sessionChecked = useRef(false);
 
   useEffect(() => {
-    let mounted = true;
+    let alive = true;
+
     (async () => {
-      // verifica sessão **uma única vez** por mount
-      if (!sessionCheckedRef.current) {
+      // valida sessão só uma vez por montagem
+      if (!sessionChecked.current) {
         const { data } = await supabase.auth.getSession();
-        if (!mounted) return;
+        if (!alive) return;
         if (!data.session) {
           if (location.pathname !== "/admin/login") navigate("/admin/login", { replace: true });
           setReady(true);
-          sessionCheckedRef.current = true;
+          sessionChecked.current = true;
           return;
         }
-        sessionCheckedRef.current = true;
+        sessionChecked.current = true;
       }
 
       if (loading) return;
 
-      // ACL com navegação defensiva (não navega para o mesmo path)
-      const go = (to: string) => {
-        if (location.pathname !== to) navigate(to, { replace: true });
-      };
+      const go = (to: string) => { if (location.pathname !== to) navigate(to, { replace: true }); };
 
       if (!isStaffByPerms(perms)) {
         go("/auth");
@@ -146,9 +164,10 @@ function useAdminGuard() {
         go("/admin");
       }
 
-      if (mounted) setReady(true);
+      if (alive) setReady(true);
     })();
-    return () => { mounted = false; };
+
+    return () => { alive = false; };
   }, [loading, perms, location.pathname, navigate]);
 
   return { ready, perms, loading };
@@ -189,73 +208,6 @@ function useOnlineCount() {
     return () => { alive = false; clearInterval(id); };
   }, []);
   return { count, loading };
-}
-function OnlineDrawer({
-  open, onClose, navigateToPlayer,
-}: { open: boolean; onClose: () => void; navigateToPlayer: (id: string) => void; }) {
-  const { rows, loading, erro, refresh } = useOnlinePlayers(open);
-  const [q, setQ] = useState("");
-  useEffect(() => { if (!open) setQ(""); }, [open]);
-  useEffect(() => { if (!open) return; const prev=document.body.style.overflow; document.body.style.overflow="hidden"; return ()=>{document.body.style.overflow=prev;}; }, [open]);
-
-  const filtered = useMemo(() => {
-    const s = q.trim().toLowerCase();
-    if (!s) return rows;
-    return rows.filter(r =>
-      r.name.toLowerCase().includes(s) ||
-      (r.citizenid ?? "").toLowerCase().includes(s) ||
-      (r.license ?? "").toLowerCase().includes(s) ||
-      r.id.includes(s)
-    );
-  }, [rows, q]);
-
-  return (
-    <>
-      <div className={cx("fixed inset-0 z-40 bg-black/40 transition-opacity", open ? "opacity-100" : "pointer-events-none opacity-0")} onClick={onClose} />
-      <div className={cx("fixed inset-y-0 right-0 z-50 w-[min(92vw,420px)] transform border-l border-white/10 bg-[#0b0b0c] text-white transition-transform duration-300 shadow-2xl",
-                         open ? "translate-x-0" : "translate-x-full")}
-           role="dialog" aria-modal="true" aria-label="Players online">
-        <div className="h-14 flex items-center justify-between px-4 border-b border-white/10 bg-white/5">
-          <div className="font-semibold">Players online</div>
-          <div className="flex items-center gap-2">
-            {loading && <Spinner />}
-            <button className="px-2 py-1 rounded bg-white/10 hover:bg-white/15 text-xs" onClick={refresh} disabled={loading}>Atualizar</button>
-            <button className="px-2 py-1 rounded bg-white/10 hover:bg-white/15" onClick={onClose}>Fechar</button>
-          </div>
-        </div>
-        <div className="p-3 border-b border-white/10">
-          <div className="relative">
-            <Icon.Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-white/50" />
-            <input value={q} onChange={(e)=>setQ(e.target.value)} placeholder="Pesquisar por nome, citizenid, licença…"
-                   className="w-full rounded-lg border border-white/10 bg-black/30 text-white pl-8 pr-3 py-2 outline-none focus:ring-2 focus:ring-white/20" />
-          </div>
-          {erro && <div className="mt-2 rounded border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">{erro}</div>}
-        </div>
-        <div className="p-3 overflow-y-auto h-[calc(100vh-3.5rem-76px)]">
-          {loading && rows.length === 0 ? <div className="text-sm text-white/60">A carregar…</div>
-           : filtered.length === 0 ? <div className="text-sm text-white/60">Sem players.</div>
-           : <ul className="space-y-2">
-               {filtered.map((p) => (
-                 <li key={p.id} className="rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 transition">
-                   <button className="w-full text-left p-3 flex items-center gap-3"
-                           onClick={()=>{ navigateToPlayer(p.id); onClose(); }} title={p.name}>
-                     <div className="h-8 w-8 rounded-full bg-white/10 grid place-items-center text-xs text-white/70">
-                       {getInitials(p.name)}
-                     </div>
-                     <div className="min-w-0">
-                       <div className="font-medium truncate">{p.name}</div>
-                       <div className="text-xs text-white/60 mt-0.5 truncate">
-                         id: {p.id}{p.citizenid ? <> · cid: {p.citizenid}</> : null}{p.license ? <> · lic: {p.license}</> : null}
-                       </div>
-                     </div>
-                   </button>
-                 </li>
-               ))}
-             </ul>}
-        </div>
-      </div>
-    </>
-  );
 }
 
 /* ---------------- Avatar + dropdown ---------------- */
@@ -498,9 +450,13 @@ export default function AdminLayout() {
   }, []);
 
   useEffect(() => { supabase.auth.getUser().then(({ data }) => setEmail(data.user?.email ?? null)); }, []);
-  const onLogout = async () => { await supabase.auth.signOut(); navigate("/admin/login", { replace: true }); };
+  const onLogout = async () => {
+    clearPermsCache();               // limpa cache no logout
+    await supabase.auth.signOut();
+    navigate("/admin/login", { replace: true });
+  };
 
-  // Navegação com ACL por item (corrigido /admin/devwork)
+  // Navegação com ACL por item
   const nav = useMemo(() => {
     const all = [
       { to: "/admin", label: "Dashboard", icon: Icon.Home, exact: true, need: "staff" as const },
@@ -545,7 +501,7 @@ export default function AdminLayout() {
           <h1 className="text-sm md:text-base font-semibold">Painel de Administração</h1>
         </div>
 
-        {/* Pesquisa global */}
+        {/* Pesquisa global (abre palette) */}
         <div className="hidden md:flex items-center flex-1 max-w-xl mx-3">
           <button onClick={()=>setPaletteOpen(true)} className="group relative w-full text-left">
             <div className="relative w-full">
