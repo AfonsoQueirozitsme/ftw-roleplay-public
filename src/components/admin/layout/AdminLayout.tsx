@@ -6,19 +6,82 @@ import { listOnlinePlayers, listPlayers } from "@/lib/api/players";
 import { listVehiclesGlobal } from "@/lib/api/vehicles";
 
 /* ---------------- Icons (inline) ---------------- */
+/* ---------------- Icons (inline) ---------------- */
 const Icon = {
-  Menu: (p: any) => (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...p}><path strokeWidth="2" strokeLinecap="round" d="M4 6h16M4 12h16M4 18h16"/></svg>),
-  Search: (p: any) => (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...p}><circle cx="11" cy="11" r="7" strokeWidth="2"/><path d="m20 20-3.5-3.5" strokeWidth="2" strokeLinecap="round"/></svg>),
-  Home: (p: any) => (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...p}><path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="m3 10 9-7 9 7v9a2 2 0 0 1-2 2h-3a2 2 0 0 1-2-2v-3H8v3a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>),
-  Users: (p: any) => (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...p}><path strokeWidth="2" strokeLinecap="round" d="M16 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="8" cy="7" r="4" strokeWidth="2"/><path strokeWidth="2" strokeLinecap="round" d="M20 8a3 3 0 1 1-6 0 3 3 0 0 1 6 0ZM20 21v-2a4.6 4.6 0 0 0-3-4.3"/></svg>),
-  Server: (p: any) => (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...p}><rect x="3" y="3" width="18" height="8" rx="2" strokeWidth="2"/><rect x="3" y="13" width="18" height="8" rx="2" strokeWidth="2"/><path d="M7 8h.01M7 18h.01" strokeWidth="2" strokeLinecap="round"/></svg>),
-  Clipboard: (p: any) => (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...p}><rect x="7" y="3" width="10" height="4" rx="1" strokeWidth="2"/><rect x="4" y="7" width="16" height="14" rx="2" strokeWidth="2"/></svg>),
-  Image: (p: any) => (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...p}><rect x="3" y="3" width="18" height="18" rx="2" strokeWidth="2"/><circle cx="8.5" cy="8.5" r="1.5" strokeWidth="2"/><path d="m21 15-5-5L5 21" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>),
-  Logs: (p: any) => (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...p}><path strokeWidth="2" d="M3 5h18M3 12h18M3 19h18"/><path strokeWidth="2" d="M8 5v14"/></svg>),
-  ChevronLeft: (p: any) => (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...p}><path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="m15 18-6-6 6-6"/></svg>),
-  ChevronRight: (p: any) => (<svg viewBox="0 0 24 24  fill="none" stroke="currentColor" {...p}><path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="m9 18 6-6-6-6"/></svg>),
-  Logout: (p: any) => (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...p}><path strokeWidth="2" d="M15 3h4a2 2 0 0 1 2 2v3"/><path strokeWidth="2" d="M10 7 5 12l5 5"/><path strokeWidth="2" d="M5 12h13"/></svg>),
-  External: (p: any) => (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...p}><path d="M14 3h7v7" strokeWidth="2"/><path d="M10 14 21 3" strokeWidth="2"/><path d="M5 7v11a2 2 0 0 0 2 2h11" strokeWidth="2"/></svg>),
+  Menu: (p: any) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...p}>
+      <path strokeWidth="2" strokeLinecap="round" d="M4 6h16M4 12h16M4 18h16" />
+    </svg>
+  ),
+  Search: (p: any) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...p}>
+      <circle cx="11" cy="11" r="7" strokeWidth="2" />
+      <path d="m20 20-3.5-3.5" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  ),
+  Home: (p: any) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...p}>
+      <path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="m3 10 9-7 9 7v9a2 2 0 0 1-2 2h-3a2 2 0 0 1-2-2v-3H8v3a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+    </svg>
+  ),
+  Users: (p: any) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...p}>
+      <path strokeWidth="2" strokeLinecap="round" d="M16 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+      <circle cx="8" cy="7" r="4" strokeWidth="2" />
+      <path strokeWidth="2" strokeLinecap="round" d="M20 8a3 3 0 1 1-6 0 3 3 0 0 1 6 0ZM20 21v-2a4.6 4.6 0 0 0-3-4.3" />
+    </svg>
+  ),
+  Server: (p: any) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...p}>
+      <rect x="3" y="3" width="18" height="8" rx="2" strokeWidth="2" />
+      <rect x="3" y="13" width="18" height="8" rx="2" strokeWidth="2" />
+      <path d="M7 8h.01M7 18h.01" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  ),
+  Clipboard: (p: any) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...p}>
+      <rect x="7" y="3" width="10" height="4" rx="1" strokeWidth="2" />
+      <rect x="4" y="7" width="16" height="14" rx="2" strokeWidth="2" />
+    </svg>
+  ),
+  Image: (p: any) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...p}>
+      <rect x="3" y="3" width="18" height="18" rx="2" strokeWidth="2" />
+      <circle cx="8.5" cy="8.5" r="1.5" strokeWidth="2" />
+      <path d="m21 15-5-5L5 21" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  ),
+  Logs: (p: any) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...p}>
+      <path strokeWidth="2" d="M3 5h18M3 12h18M3 19h18" />
+      <path strokeWidth="2" d="M8 5v14" />
+    </svg>
+  ),
+  ChevronLeft: (p: any) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...p}>
+      <path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="m15 18-6-6 6-6" />
+    </svg>
+  ),
+  // ✅ FIX: viewBox estava com aspas abertas a mais
+  ChevronRight: (p: any) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...p}>
+      <path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="m9 18 6-6-6-6" />
+    </svg>
+  ),
+  Logout: (p: any) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...p}>
+      <path strokeWidth="2" d="M15 3h4a2 2 0 0 1 2 2v3" />
+      <path strokeWidth="2" d="M10 7 5 12l5 5" />
+      <path strokeWidth="2" d="M5 12h13" />
+    </svg>
+  ),
+  External: (p: any) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...p}>
+      <path d="M14 3h7v7" strokeWidth="2" />
+      <path d="M10 14 21 3" strokeWidth="2" />
+      <path d="M5 7v11a2 2 0 0 0 2 2h11" strokeWidth="2" />
+    </svg>
+  ),
 };
 
 /* ---------------- Utils ---------------- */
