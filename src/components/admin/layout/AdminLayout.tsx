@@ -256,6 +256,139 @@ function useOnlinePlayers(enabled: boolean) {
   }, [enabled]);
   return { rows, loading, erro, refresh: fetchNow };
 }
+
+function OnlineDrawer({
+  open,
+  onClose,
+  navigateToPlayer,
+}: {
+  open: boolean;
+  onClose: () => void;
+  navigateToPlayer: (id: string) => void;
+}) {
+  const { rows, loading, erro, refresh } = useOnlinePlayers(open);
+  const [q, setQ] = React.useState("");
+
+  // limpar query quando fecha
+  React.useEffect(() => { if (!open) setQ(""); }, [open]);
+
+  // bloquear scroll do body quando aberto
+  React.useEffect(() => {
+    if (!open) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = prev; };
+  }, [open]);
+
+  const filtered = React.useMemo(() => {
+    const s = q.trim().toLowerCase();
+    if (!s) return rows;
+    return rows.filter(r =>
+      r.name.toLowerCase().includes(s) ||
+      (r.citizenid ?? "").toLowerCase().includes(s) ||
+      (r.license ?? "").toLowerCase().includes(s) ||
+      r.id.includes(s)
+    );
+  }, [rows, q]);
+
+  return (
+    <>
+      {/* backdrop */}
+      <div
+        className={cx(
+          "fixed inset-0 z-40 bg-black/40 transition-opacity",
+          open ? "opacity-100" : "pointer-events-none opacity-0"
+        )}
+        onClick={onClose}
+      />
+      {/* drawer */}
+      <div
+        className={cx(
+          "fixed inset-y-0 right-0 z-50 w-[min(92vw,420px)] transform border-l border-white/10 bg-[#0b0b0c] text-white transition-transform duration-300 shadow-2xl",
+          open ? "translate-x-0" : "translate-x-full"
+        )}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Players online"
+      >
+        <div className="h-14 flex items-center justify-between px-4 border-b border-white/10 bg-white/5">
+          <div className="font-semibold">Players online</div>
+          <div className="flex items-center gap-2">
+            {loading && <Spinner />}
+            <button
+              className="px-2 py-1 rounded bg-white/10 hover:bg-white/15 text-xs"
+              onClick={refresh}
+              disabled={loading}
+            >
+              Atualizar
+            </button>
+            <button className="px-2 py-1 rounded bg-white/10 hover:bg-white/15" onClick={onClose}>
+              Fechar
+            </button>
+          </div>
+        </div>
+
+        <div className="p-3 border-b border-white/10">
+          <div className="relative">
+            {/* Usa o mesmo Icon.Search que tens acima */}
+            <svg viewBox="0 0 24 24" className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-white/50" fill="none" stroke="currentColor">
+              <circle cx="11" cy="11" r="7" strokeWidth="2" />
+              <path d="m20 20-3.5-3.5" strokeWidth="2" strokeLinecap="round" />
+            </svg>
+            <input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Pesquisar por nome, citizenid, licença…"
+              className="w-full rounded-lg border border-white/10 bg-black/30 text-white pl-8 pr-3 py-2 outline-none focus:ring-2 focus:ring-white/20"
+            />
+          </div>
+          {erro && (
+            <div className="mt-2 rounded border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">
+              {erro}
+            </div>
+          )}
+        </div>
+
+        <div className="p-3 overflow-y-auto h-[calc(100vh-3.5rem-76px)]">
+          {loading && rows.length === 0 ? (
+            <div className="text-sm text-white/60">A carregar…</div>
+          ) : filtered.length === 0 ? (
+            <div className="text-sm text-white/60">Sem players.</div>
+          ) : (
+            <ul className="space-y-2">
+              {filtered.map((p) => (
+                <li
+                  key={p.id}
+                  className="rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 transition"
+                >
+                  <button
+                    className="w-full text-left p-3 flex items-center gap-3"
+                    onClick={() => { navigateToPlayer(p.id); onClose(); }}
+                    title={p.name}
+                  >
+                    <div className="h-8 w-8 rounded-full bg-white/10 grid place-items-center text-xs text-white/70">
+                      {getInitials(p.name)}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="font-medium truncate">{p.name}</div>
+                      <div className="text-xs text-white/60 mt-0.5 truncate">
+                        id: {p.id}
+                        {p.citizenid ? <> · cid: {p.citizenid}</> : null}
+                        {p.license ? <> · lic: {p.license}</> : null}
+                      </div>
+                    </div>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+    </>
+  );
+}
+
+
 function useOnlineCount() {
   const [count, setCount] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
