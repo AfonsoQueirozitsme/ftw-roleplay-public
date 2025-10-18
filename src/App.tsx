@@ -12,24 +12,22 @@ import AuthPage from "@/pages/dashboard/auth/AuthPage";
 import AuthCallback from "@/pages/dashboard/auth/AuthCallback";
 import RequireAuth from "@/components/dashboard/RequireAuth";
 
-/* — Client Dashboard (layout + outlet) — */
-import DashboardPage from "@/pages/dashboard/Index"; // contém a navbar do dashboard e <Outlet/>
-
-/* Vistas do dashboard (cada uma é um ecrã/aba) */
+/* — Client Dashboard — */
+import DashboardPage from "@/pages/dashboard/Index";
 import ReportsTab from "@/pages/dashboard/ReportsTab";
 import EarlyAccessTab from "@/pages/dashboard/EarlyAccessTab";
 import RulesTab from "@/pages/dashboard/RulesTab";
 
-/* — Páginas estáticas (públicas) — */
+/* — Páginas estáticas — */
 import Terms from "@/pages/static/Terms";
-import RulesStatic from "@/pages/static/Rules";       // evitar conflito com RulesTab
+import RulesStatic from "@/pages/static/Rules";
 import Privacy from "@/pages/static/Privacy";
-import CookiesPage from "@/pages/static/Cookies";     // evitar conflito com name genérico
+import CookiesPage from "@/pages/static/Cookies";
 import About from "@/pages/static/About";
-import Shop from "@/pages/static/Shop";
 import Events from "@/pages/static/Events";
 import News from "@/pages/static/News";
 import NewsDetail from "@/pages/static/NewsDetail";
+import Punishments from "@/pages/Punishments";
 
 /* — Admin — */
 import AdminLayout from "@/components/admin/layout/AdminLayout";
@@ -45,33 +43,44 @@ import Resources from "@/pages/admin/resources";
 import DevWork from "@/pages/admin/DevWork";
 import DevLeaders from "@/pages/admin/DevLeaders";
 
+/* — Redirect externo — */
+function ExternalShopRedirect() {
+  React.useEffect(() => {
+    window.location.href = "https://shop.roleplay.ftw.pt";
+  }, []);
+  return <p style={{ textAlign: "center", marginTop: "2rem" }}>A redirecionar para a loja...</p>;
+}
+
 export default function App() {
   return (
     <Routes>
-      {/* Público (Navbar/Footer via <Layout/>) */}
+      {/* Público */}
       <Route element={<Layout />}>
         <Route path="/" element={<Home />} />
 
-        {/* Auth público (fora do RequireAuth) */}
+        {/* Auth público */}
         <Route path="/auth" element={<AuthPage />} />
         <Route path="/auth/callback" element={<AuthCallback />} />
 
         {/* Estáticas */}
         <Route path="/terms" element={<Terms />} />
         <Route path="/rules" element={<RulesStatic />} />
+        <Route path="/punishments" element={<Punishments />} />
         <Route path="/privacy" element={<Privacy />} />
         <Route path="/cookies" element={<CookiesPage />} />
         <Route path="/about" element={<About />} />
-        <Route path="/shop" element={<Shop />} />
         <Route path="/events" element={<Events />} />
         <Route path="/news" element={<News />} />
         <Route path="/news/:slug" element={<NewsDetail />} />
+
+        {/* Redirecionamento externo */}
+        <Route path="/shop" element={<ExternalShopRedirect />} />
 
         {/* 404 público */}
         <Route path="*" element={<NotFound />} />
       </Route>
 
-      {/* Client Dashboard (protegido) */}
+      {/* Client Dashboard */}
       <Route
         path="/dashboard"
         element={
@@ -80,16 +89,14 @@ export default function App() {
           </RequireAuth>
         }
       >
-        {/* /dashboard → /dashboard/reports */}
         <Route index element={<Navigate to="reports" replace />} />
         <Route path="reports" element={<ReportsTab />} />
         <Route path="early-access" element={<EarlyAccessTab />} />
         <Route path="rules" element={<RulesTab />} />
-        {/* 404 específico do /dashboard */}
         <Route path="*" element={<NotFound />} />
       </Route>
 
-      {/* Admin (sem Navbar/Footer público) */}
+      {/* Admin */}
       <Route path="/admin/login" element={<AdminLogin />} />
       <Route path="/admin" element={<AdminLayout />}>
         <Route index element={<Dashboard />} />
@@ -102,7 +109,6 @@ export default function App() {
         <Route path="devwork" element={<DevWork />} />
         <Route path="resources" element={<Resources />} />
         <Route path="devleaders" element={<DevLeaders />} />
-        {/* 404 específico do /admin */}
         <Route path="*" element={<NotFound />} />
       </Route>
     </Routes>

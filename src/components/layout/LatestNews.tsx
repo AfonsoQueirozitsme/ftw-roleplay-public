@@ -1,6 +1,7 @@
 // LatestNews.tsx
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { ArrowUpRight } from "lucide-react";
+import { supabase } from "@/lib/supabase";
 
 /* Carrega fontes caso não estejam globais */
 function useLoadFonts() {
@@ -15,17 +16,17 @@ function useLoadFonts() {
 }
 
 type NewsItem = {
-  id: string | number;
+  id: string;
   title: string;
-  description: string;
-  image: string;
-  date: string; // YYYY-MM-DD
-  href?: string;
+  description: string | null;
+  image: string | null;
+  date: string;      // ISO
+  href?: string | null;
 };
 
 type LatestNewsProps = {
-  items?: NewsItem[];
   className?: string;
+  limit?: number; // nº de notícias a carregar (default 6)
 };
 
 function formatDateParts(iso: string) {
@@ -36,38 +37,52 @@ function formatDateParts(iso: string) {
   return { day, month, year };
 }
 
-const DEFAULT_ITEMS: NewsItem[] = [
-  {
-    id: 1,
-    title: "Economia reajustada e novo sistema de empresas",
-    description:
-      "Rework total da economia: contratos, impostos dinâmicos e progressão mais justa.",
-    image: "https://placehold.co/640x360?text=NEWS+01",
-    date: "2025-08-24",
-    href: "#noticia-1",
-  },
-  {
-    id: 2,
-    title: "Atualização das forças policiais",
-    description:
-      "Novas unidades, protocolos de perseguição e formações obrigatórias.",
-    image: "https://placehold.co/640x360?text=NEWS+02",
-    date: "2025-09-02",
-    href: "#noticia-2",
-  },
-  {
-    id: 3,
-    title: "Eventos semanais e recompensas exclusivas",
-    description:
-      "Corridas ilegais, negócios sombrios e prémios raros para quem arrisca.",
-    image: "https://placehold.co/640x360?text=NEWS+03",
-    date: "2025-09-10",
-    href: "#noticia-3",
-  },
-];
+const PLACEHOLDER = "https://placehold.co/640x360?text=FTW+NEWS";
 
-const LatestNews: React.FC<LatestNewsProps> = ({ items = DEFAULT_ITEMS, className }) => {
+const LatestNews: React.FC<LatestNewsProps> = ({ className, limit = 6 }) => {
   useLoadFonts();
+  const [items, setItems] = useState<NewsItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    let abort = false;
+
+    async function load() {
+      setLoading(true);
+      setErr(null);
+
+      const { data, error } = await supabase
+        .from("news")
+        .select("id, slug, title, excerpt, cover_url, published_at")
+        .not("published_at", "is", null)
+        .lte("published_at", new Date().toISOString())
+        .order("published_at", { ascending: false })
+        .limit(limit);
+
+      if (abort) return;
+
+      if (error) {
+        setErr(error.message);
+        setItems([]);
+      } else {
+        const mapped: NewsItem[] =
+          (data || []).map((r: any) => ({
+            id: r.id,
+            title: r.title,
+            description: r.excerpt,
+            image: r.cover_url,
+            date: r.published_at,
+            href: r.slug ? `/news/${r.slug}` : undefined,
+          })) ?? [];
+        setItems(mapped);
+      }
+      setLoading(false);
+    }
+
+    load();
+    return () => { abort = true; };
+  }, [limit]);
 
   return (
     <section
@@ -88,64 +103,88 @@ const LatestNews: React.FC<LatestNewsProps> = ({ items = DEFAULT_ITEMS, classNam
         </h2>
       </div>
 
-      {/* Lista (sempre vertical) */}
-      <div className="max-w-7xl mx-auto mt-8" role="list">
-        {items.map((item, idx) => {
-          const { day, month, year } = formatDateParts(item.date);
-          const isLast = idx === items.length - 1;
-
-          return (
-            <div key={item.id} role="listitem" className="w-full">
-              <a
-                href={item.href || "#"}
-                className="group relative w-full flex flex-col sm:flex-row gap-5 px-6 py-6"
-              >
-                {/* Imagem */}
-                <img
-                  src={item.image}
-                  alt={item.title}
-                  className="w-full sm:w-48 h-48 sm:h-28 object-cover rounded-md select-none"
-                  draggable={false}
-                />
-
-                {/* Data */}
-                <div className="flex-shrink-0 flex sm:flex-col items-center justify-center gap-1 sm:gap-0">
-                  <span className="text-5xl font-extrabold leading-none">{day}</span>
-                  <span className="text-xs sm:mt-1 leading-none">{month}</span>
-                  <span className="text-[10px] sm:mt-0.5 leading-none opacity-80">{year}</span>
+      {/* Loading / Erro */}
+      <div className="max-w-7xl mx-auto mt-8 px-6">
+        {loading && (
+          <div className="animate-pulse space-y-6">
+            {[...Array(3)].map((_, i) => (
+              <div key={i} className="flex flex-col sm:flex-row gap-5">
+                <div className="w-full sm:w-48 h-48 sm:h-28 bg-white/10 rounded-md" />
+                <div className="flex-1">
+                  <div className="h-6 w-2/3 bg-white/10 rounded mb-2" />
+                  <div className="h-4 w-full bg-white/10 rounded" />
                 </div>
+              </div>
+            ))}
+          </div>
+        )}
 
-                {/* Conteúdo (centrado) */}
-                <div className="relative flex-1 text-center sm:text-center">
-                  <h3
-                    className="text-lg md:text-xl font-semibold leading-snug transition-colors duration-500 ease-out"
-                    style={{ color: "#fbfbfb" }}
-                  >
-                    <span className="group-hover:text-[#e53e30]">{item.title}</span>
-                  </h3>
-                  <p className="mt-2 text-sm leading-relaxed text-white/80">
-                    {item.description}
-                  </p>
-
-                  {/* Seta (dobro do tamanho) — fica vermelha e com leve scale no hover (soft) */}
-                  <ArrowUpRight
-                    className="absolute right-0 bottom-0 w-10 h-10 transition-all duration-500 ease-out
-                               group-hover:-translate-y-0.5 group-hover:translate-x-0.5
-                               group-hover:scale-110 group-hover:text-[#e53e30]"
-                    style={{ color: "#fbfbfb" }}
-                    aria-hidden="true"
-                  />
-                </div>
-              </a>
-
-              {/* Separador (hr) entre notícias — com margens laterais e cantos arredondados */}
-              {!isLast && (
-                <div className="h-px bg-[#fbfbfb] opacity-80 mx-6 rounded-full" />
-              )}
-            </div>
-          );
-        })}
+        {err && !loading && (
+          <p className="text-red-400">Não foi possível carregar as notícias: {err}</p>
+        )}
       </div>
+
+      {/* Lista */}
+      {!loading && !err && (
+        <div className="max-w-7xl mx-auto mt-0" role="list">
+          {items.map((item, idx) => {
+            const { day, month, year } = formatDateParts(item.date);
+            const isLast = idx === items.length - 1;
+
+            return (
+              <div key={item.id} role="listitem" className="w-full">
+                <a
+                  href={item.href || "#"}
+                  className="group relative w-full flex flex-col sm:flex-row gap-5 px-6 py-6"
+                >
+                  {/* Imagem */}
+                  <img
+                    src={item.image || PLACEHOLDER}
+                    alt={item.title}
+                    className="w-full sm:w-48 h-48 sm:h-28 object-cover rounded-md select-none"
+                    draggable={false}
+                    onError={(e) => { (e.currentTarget as HTMLImageElement).src = PLACEHOLDER; }}
+                  />
+
+                  {/* Data */}
+                  <div className="flex-shrink-0 flex sm:flex-col items-center justify-center gap-1 sm:gap-0">
+                    <span className="text-5xl font-extrabold leading-none">{day}</span>
+                    <span className="text-xs sm:mt-1 leading-none">{month}</span>
+                    <span className="text-[10px] sm:mt-0.5 leading-none opacity-80">{year}</span>
+                  </div>
+
+                  {/* Conteúdo */}
+                  <div className="relative flex-1 text-center sm:text-center">
+                    <h3
+                      className="text-lg md:text-xl font-semibold leading-snug transition-colors duration-500 ease-out"
+                      style={{ color: "#fbfbfb" }}
+                    >
+                      <span className="group-hover:text-[#e53e30]">{item.title}</span>
+                    </h3>
+                    {item.description && (
+                      <p className="mt-2 text-sm leading-relaxed text-white/80">
+                        {item.description}
+                      </p>
+                    )}
+
+                    <ArrowUpRight
+                      className="absolute right-0 bottom-0 w-10 h-10 transition-all duration-500 ease-out
+                                 group-hover:-translate-y-0.5 group-hover:translate-x-0.5
+                                 group-hover:scale-110 group-hover:text-[#e53e30]"
+                      style={{ color: "#fbfbfb" }}
+                      aria-hidden="true"
+                    />
+                  </div>
+                </a>
+
+                {!isLast && (
+                  <div className="h-px bg-[#fbfbfb] opacity-80 mx-6 rounded-full" />
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </section>
   );
 };

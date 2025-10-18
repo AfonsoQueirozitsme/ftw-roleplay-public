@@ -101,6 +101,11 @@ const Navbar: React.FC<NavbarProps> = ({
               </NavLink>
             </li>
             <li>
+              <NavLink to="/punishments" className={navLinkClass}>
+                PUNIÇÕES
+              </NavLink>
+            </li>
+            <li>
               <NavLink to="/events" className={navLinkClass}>
                 EVENTOS
               </NavLink>

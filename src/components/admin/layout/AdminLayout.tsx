@@ -1,145 +1,268 @@
-// src/admin/AdminLayout.tsx
-import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Outlet, NavLink, useNavigate, useLocation } from "react-router-dom";
+﻿import React, { useEffect, useMemo, useRef, useState } from "react";
+import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { listOnlinePlayers, listPlayers } from "@/lib/api/players";
 import { listVehiclesGlobal } from "@/lib/api/vehicles";
 
-/* ---------------- Icons (inline) ---------------- */
-/* ---------------- Icons (inline) ---------------- */
 const Icon = {
-  Menu: (p: any) => (
+  menu: (p: any) => (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...p}>
       <path strokeWidth="2" strokeLinecap="round" d="M4 6h16M4 12h16M4 18h16" />
     </svg>
   ),
-  Search: (p: any) => (
+  search: (p: any) => (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...p}>
       <circle cx="11" cy="11" r="7" strokeWidth="2" />
-      <path d="m20 20-3.5-3.5" strokeWidth="2" strokeLinecap="round" />
+      <path strokeWidth="2" strokeLinecap="round" d="m20 20-3.5-3.5" />
     </svg>
   ),
-  Home: (p: any) => (
+  dashboard: (p: any) => (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...p}>
-      <path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="m3 10 9-7 9 7v9a2 2 0 0 1-2 2h-3a2 2 0 0 1-2-2v-3H8v3a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+      <path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M3 12h7V3H3zm11 9h7v-7h-7zm0-9h7V3h-7zM3 21h7v-7H3z" />
     </svg>
   ),
-  Users: (p: any) => (
+  users: (p: any) => (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...p}>
       <path strokeWidth="2" strokeLinecap="round" d="M16 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-      <circle cx="8" cy="7" r="4" strokeWidth="2" />
-      <path strokeWidth="2" strokeLinecap="round" d="M20 8a3 3 0 1 1-6 0 3 3 0 0 1 6 0ZM20 21v-2a4.6 4.6 0 0 0-3-4.3" />
+      <circle cx="9" cy="7" r="4" strokeWidth="2" />
+      <path strokeWidth="2" strokeLinecap="round" d="M22 21v-2a4 4 0 0 0-3-3.87" />
+      <path strokeWidth="2" strokeLinecap="round" d="M16 7a4 4 0 1 1 0 8" />
     </svg>
   ),
-  Server: (p: any) => (
+  shield: (p: any) => (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...p}>
-      <rect x="3" y="3" width="18" height="8" rx="2" strokeWidth="2" />
-      <rect x="3" y="13" width="18" height="8" rx="2" strokeWidth="2" />
-      <path d="M7 8h.01M7 18h.01" strokeWidth="2" strokeLinecap="round" />
+      <path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M12 3 4 6v6c0 5 3.5 8.5 8 9 4.5-.5 8-4 8-9V6z" />
+      <path strokeWidth="2" strokeLinecap="round" d="M10 13.5 12.2 15.5 16 11" />
     </svg>
   ),
-  Clipboard: (p: any) => (
+  key: (p: any) => (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...p}>
-      <rect x="7" y="3" width="10" height="4" rx="1" strokeWidth="2" />
-      <rect x="4" y="7" width="16" height="14" rx="2" strokeWidth="2" />
+      <path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M15 7a5 5 0 1 1-9.9 1M10 12l8 8 3-3-8-8" />
+      <path strokeWidth="2" strokeLinecap="round" d="M7 14l3 3" />
     </svg>
   ),
-  Image: (p: any) => (
+  news: (p: any) => (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...p}>
-      <rect x="3" y="3" width="18" height="18" rx="2" strokeWidth="2" />
-      <circle cx="8.5" cy="8.5" r="1.5" strokeWidth="2" />
-      <path d="m21 15-5-5L5 21" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <rect x="3" y="4" width="18" height="16" rx="2" strokeWidth="2" />
+      <path strokeWidth="2" strokeLinecap="round" d="M7 8h7M7 12h10M7 16h5" />
     </svg>
   ),
-  Logs: (p: any) => (
+  book: (p: any) => (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...p}>
-      <path strokeWidth="2" d="M3 5h18M3 12h18M3 19h18" />
-      <path strokeWidth="2" d="M8 5v14" />
+      <path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M4 4h9a3 3 0 0 1 3 3v13H7a3 3 0 0 0-3 3z" />
+      <path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M20 22V7a3 3 0 0 0-3-3" />
     </svg>
   ),
-  ChevronLeft: (p: any) => (
+  support: (p: any) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...p}>
+      <circle cx="12" cy="12" r="9" strokeWidth="2" />
+      <path strokeWidth="2" strokeLinecap="round" d="M12 7v5l3 3" />
+    </svg>
+  ),
+  code: (p: any) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...p}>
+      <path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="m7 8-4 4 4 4m10-8 4 4-4 4M14 4l-4 16" />
+    </svg>
+  ),
+  form: (p: any) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...p}>
+      <rect x="4" y="4" width="16" height="16" rx="2" strokeWidth="2" />
+      <path strokeWidth="2" strokeLinecap="round" d="M8 8h8M8 12h6M8 16h5" />
+    </svg>
+  ),
+  discord: (p: any) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...p}>
+      <path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M17 4c-1.3-.6-2.6-.9-4-.9s-2.7.3-4 .9C5.5 4.7 3 7.8 3 11.4c0 2.2 1 4.2 2.5 5.6 1.1 1 2.5 1.7 4 1.9l.5-1.7c-.8-.2-1.5-.6-2.1-1.2.6.3 1.3.5 2 .6.9.2 1.8.3 2.7.3s1.8-.1 2.7-.3c.7-.1 1.4-.3 2-.6-.6.6-1.3 1-2.1 1.2l.5 1.7c1.5-.2 2.9-.9 4-1.9 1.5-1.4 2.5-3.4 2.5-5.6C21 7.8 18.5 4.7 17 4z" />
+      <circle cx="9" cy="11" r="1.2" fill="currentColor" />
+      <circle cx="15" cy="11" r="1.2" fill="currentColor" />
+    </svg>
+  ),
+  activity: (p: any) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...p}>
+      <path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M3 12h4l3 8 4-16 3 8h4" />
+    </svg>
+  ),
+  settings: (p: any) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...p}>
+      <circle cx="12" cy="12" r="3" strokeWidth="2" />
+      <path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M19.4 15a1.6 1.6 0 0 0 .3 1.7l.1.1a2 2 0 0 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.7-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 0 1-4 0v-.2a1.6 1.6 0 0 0-1-1.5 1.6 1.6 0 0 0-1.7.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.6 1.6 0 0 0 5 15a1.6 1.6 0 0 0-1.5-1H3a2 2 0 0 1 0-4h.2A1.6 1.6 0 0 0 5 9a1.6 1.6 0 0 0-.3-1.7l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1A1.6 1.6 0 0 0 9 5c.7-.2 1.2-.8 1.2-1.5V3a2 2 0 0 1 4 0v.2c0 .7.5 1.3 1.2 1.5a1.6 1.6 0 0 0 1.7-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1A1.6 1.6 0 0 0 19 9c.7.2 1.3.8 1.2 1.5V11c0 .7.5 1.3 1.2 1.5z" />
+    </svg>
+  ),
+  chevronLeft: (p: any) => (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...p}>
       <path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="m15 18-6-6 6-6" />
     </svg>
   ),
-  // ✅ FIX: viewBox estava com aspas abertas a mais
-  ChevronRight: (p: any) => (
+  chevronRight: (p: any) => (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...p}>
-      <path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="m9 18 6-6-6-6" />
+      <path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="m9 6 6 6-6 6" />
     </svg>
   ),
-  Logout: (p: any) => (
+  logout: (p: any) => (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...p}>
       <path strokeWidth="2" d="M15 3h4a2 2 0 0 1 2 2v3" />
       <path strokeWidth="2" d="M10 7 5 12l5 5" />
       <path strokeWidth="2" d="M5 12h13" />
     </svg>
   ),
-  External: (p: any) => (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...p}>
-      <path d="M14 3h7v7" strokeWidth="2" />
-      <path d="M10 14 21 3" strokeWidth="2" />
-      <path d="M5 7v11a2 2 0 0 0 2 2h11" strokeWidth="2" />
-    </svg>
-  ),
 };
 
-/* ---------------- Utils ---------------- */
-const cx = (...c: (string | false | null | undefined)[]) => c.filter(Boolean).join(" ");
-function Spinner({ className = "" }: { className?: string }) {
-  return <span className={cx("inline-block h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white", className)} aria-label="a carregar" />;
-}
-const getInitials = (s?: string | null) =>
-  (s?.trim().split(/[^\p{L}\p{N}]+/u).filter(Boolean).slice(0,2).map(x=>x[0]).join("") || "??").toUpperCase();
+const cx = (...classes: Array<string | false | null | undefined>) => classes.filter(Boolean).join(" ");
 
-/* ---------------- Permissões (staff) ---------------- */
+function Spinner({ className = "" }: { className?: string }) {
+  return (
+    <span
+      className={cx("inline-block h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white", className)}
+      aria-label="Loading"
+    />
+  );
+}
+
+const getInitials = (value?: string | null) =>
+  (value?.trim().split(/[\s_-]+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("") || "??").toUpperCase();
+
 type Perms = string[];
+
 const PERMS_CACHE_KEY = "admin:perms_cache_v1";
-const PERMS_TTL_MS = 48 * 60 * 60 * 1000; // 48h
+const PERMS_TTL_MS = 48 * 60 * 60 * 1000;
 
 type PermsCache = { user_id: string; perms: string[]; cached_at: number };
+
 const readPermsCache = (): PermsCache | null => {
-  try { return JSON.parse(localStorage.getItem(PERMS_CACHE_KEY) || "null"); } catch { return null; }
+  try {
+    return JSON.parse(localStorage.getItem(PERMS_CACHE_KEY) || "null");
+  } catch (error) {
+    console.error("Failed to read perms cache", error);
+    return null;
+  }
 };
-const writePermsCache = (v: PermsCache) => { try { localStorage.setItem(PERMS_CACHE_KEY, JSON.stringify(v)); } catch {} };
-const clearPermsCache = () => { try { localStorage.removeItem(PERMS_CACHE_KEY); } catch {} };
+
+const writePermsCache = (payload: PermsCache) => {
+  try {
+    localStorage.setItem(PERMS_CACHE_KEY, JSON.stringify(payload));
+  } catch (error) {
+    console.error("Failed to write perms cache", error);
+  }
+};
+
+const clearPermsCache = () => {
+  try {
+    localStorage.removeItem(PERMS_CACHE_KEY);
+  } catch (error) {
+    console.error("Failed to clear perms cache", error);
+  }
+};
 
 const isStaffByPerms = (perms?: Perms | null) =>
-  !!perms?.some(p => p.startsWith("ftw.") || p.startsWith("group.ftw_"));
+  !!perms?.some((p) => p.startsWith("ftw.") || p.startsWith("group.ftw_"));
 
-const has = (perms: Perms | null | undefined, p: string) => !!perms?.includes(p);
-const hasAny = (perms: Perms | null | undefined, req: string[]) =>
-  !!perms && req.some(r => perms.includes(r));
-const isGestao = (perms?: Perms | null) => has(perms, "ftw.management.all");
+const has = (perms: Perms | null | undefined, perm: string) => !!perms?.includes(perm);
+const hasAny = (perms: Perms | null | undefined, required: string[]) =>
+  !!perms && required.some((perm) => perms.includes(perm));
+const isManagement = (perms?: Perms | null) => has(perms, "ftw.management.all");
 
-/** ACL por rota (prefix match) */
-const ACL: Record<string, string[] | "staff"> = {
-  "/admin": "staff",
-  "/admin/devleaders": "staff",
-  "/admin/devwork": ["group.ftw_dev","ftw.dev.head","ftw.management.all"],
-  "/admin/players": ["ftw.supervise.basic","ftw.supervise.advanced","ftw.admin.basic","ftw.admin.senior","ftw.admin.head","ftw.management.all"],
-  "/admin/txadmin": ["ftw.admin.senior","ftw.admin.head","ftw.management.all"],
-  "/admin/candidaturas": ["ftw.support.read","ftw.support.manage","ftw.admin.basic","ftw.management.all"],
-  "/admin/logs": ["ftw.admin.basic","ftw.admin.senior","ftw.admin.head","ftw.management.all"],
-  "/admin/imagens": ["ftw.dev","group.ftw_dev","ftw.management.all"],
-  "/admin/resources": ["ftw.dev","group.ftw_dev","ftw.management.all"],
+type AdminNavSectionId =
+  | "overview"
+  | "people"
+  | "content"
+  | "operations"
+  | "dev"
+  | "governance";
+
+type AdminNavItem = {
+  to: string;
+  label: string;
+  icon: (props: any) => JSX.Element;
+  exact?: boolean;
+  need: string[] | "staff";
+  section: AdminNavSectionId;
 };
 
-function requiredForPath(pathname: string): string[] | "staff" {
-  const key = Object.keys(ACL)
-    .filter(k => pathname === k || pathname.startsWith(k + "/"))
-    .sort((a,b) => b.length - a.length)[0];
-  return key ? ACL[key] : "staff";
-}
+type QuickAction = {
+  label: string;
+  description?: string;
+  icon: (props: any) => JSX.Element;
+  onTrigger: () => void;
+};
 
-function canAccess(perms: Perms | null | undefined, pathname: string): boolean {
-  if (isGestao(perms)) return true;
+const NAV_SECTIONS: Array<{ id: AdminNavSectionId; label: string; description?: string }> = [
+  { id: "overview", label: "Dashboard", description: "Resumo da operacao" },
+  { id: "people", label: "Utilizadores", description: "Perfis, papeis e integracoes" },
+  { id: "content", label: "Conteudo", description: "Noticias, eventos e regulamentos" },
+  { id: "operations", label: "Operacoes", description: "Suporte, reports e logs" },
+  { id: "dev", label: "Development", description: "Tasks e time tracking" },
+  { id: "governance", label: "Governanca", description: "Permissoes, chaves e configuracoes" },
+];
+
+const SECTION_ACCENT: Record<AdminNavSectionId, { pill: string; glow: string; border: string }> = {
+  overview: {
+    pill: "from-rose-500/80 via-red-500/80 to-orange-400/80",
+    glow: "bg-rose-500/15",
+    border: "border-rose-400/40",
+  },
+  people: {
+    pill: "from-sky-500/80 via-cyan-500/80 to-emerald-400/80",
+    glow: "bg-sky-500/15",
+    border: "border-sky-400/40",
+  },
+  content: {
+    pill: "from-indigo-500/80 via-purple-500/80 to-pink-500/80",
+    glow: "bg-indigo-500/15",
+    border: "border-indigo-400/40",
+  },
+  operations: {
+    pill: "from-amber-500/80 via-yellow-500/80 to-lime-400/80",
+    glow: "bg-amber-500/15",
+    border: "border-amber-400/40",
+  },
+  dev: {
+    pill: "from-emerald-500/80 via-teal-500/80 to-blue-500/80",
+    glow: "bg-emerald-500/15",
+    border: "border-emerald-400/40",
+  },
+  governance: {
+    pill: "from-slate-500/80 via-slate-400/80 to-slate-300/80",
+    glow: "bg-slate-500/15",
+    border: "border-slate-400/40",
+  },
+};
+
+const ACL: Record<string, string[] | "staff"> = {
+  "/admin": "staff",
+  "/admin/users": ["admin.access", "users.manage", "ftw.admin.basic"],
+  "/admin/users/profiles": ["admin.access", "users.manage"],
+  "/admin/roles": ["roles.manage", "ftw.admin.head", "ftw.management.all"],
+  "/admin/roles/permissions": ["roles.manage", "ftw.admin.head", "ftw.management.all"],
+  "/admin/api": ["settings.manage", "ftw.admin.head", "ftw.management.all"],
+  "/admin/api/files": ["resources.manage", "ftw.dev", "ftw.management.all"],
+  "/admin/news": ["settings.manage", "ftw.admin.basic", "ftw.management.all"],
+  "/admin/events": ["settings.manage", "ftw.admin.basic", "ftw.management.all"],
+  "/admin/rules": ["settings.manage", "ftw.admin.basic", "ftw.management.all"],
+  "/admin/punishments": ["settings.manage", "ftw.admin.basic", "ftw.management.all"],
+  "/admin/support": ["support.manage", "ftw.support.manage", "ftw.management.all"],
+  "/admin/support/reports": ["support.manage", "ftw.support.manage", "ftw.management.all"],
+  "/admin/development": ["ftw.dev", "ftw.dev.head", "ftw.management.all"],
+  "/admin/development/time": ["ftw.dev", "ftw.dev.head", "ftw.management.all"],
+  "/admin/applications": ["applications.manage", "ftw.admin.basic", "ftw.management.all"],
+  "/admin/discord": ["roles.manage", "ftw.admin.head", "ftw.management.all"],
+  "/admin/logs": ["logs.view", "ftw.admin.basic", "ftw.management.all"],
+  "/admin/settings": ["settings.manage", "ftw.admin.head", "ftw.management.all"],
+};
+
+const requiredForPath = (pathname: string): string[] | "staff" => {
+  const match = Object.keys(ACL)
+    .filter((key) => pathname === key || pathname.startsWith(`${key}/`))
+    .sort((a, b) => b.length - a.length)[0];
+  return match ? ACL[match] : "staff";
+};
+
+const canAccess = (perms: Perms | null | undefined, pathname: string): boolean => {
+  if (isManagement(perms)) return true;
   const need = requiredForPath(pathname);
   if (need === "staff") return isStaffByPerms(perms);
   return hasAny(perms, need);
-}
+};
 
-/* --- Hook: obter perms (uma validação por carga + cache 48h) --- */
 function useStaffPerms() {
   const [perms, setPerms] = useState<Perms | null>(null);
   const [loading, setLoading] = useState(true);
@@ -147,9 +270,12 @@ function useStaffPerms() {
   useEffect(() => {
     let cancelled = false;
 
-    (async () => {
+    const load = async () => {
       try {
-        const { data: { user } } = await supabase.auth.getUser();
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+
         if (cancelled) return;
 
         if (!user) {
@@ -158,16 +284,14 @@ function useStaffPerms() {
           return;
         }
 
-        // tenta cache 48h
         const cached = readPermsCache();
-        const fresh = cached && cached.user_id === user.id && (Date.now() - cached.cached_at) < PERMS_TTL_MS;
+        const fresh = cached && cached.user_id === user.id && Date.now() - cached.cached_at < PERMS_TTL_MS;
 
         if (fresh) {
-          setPerms(cached!.perms as string[]);
+          setPerms(cached!.perms);
           return;
         }
 
-        // fetch uma vez
         const { data, error } = await supabase
           .from("staff_perms")
           .select("perms")
@@ -176,85 +300,467 @@ function useStaffPerms() {
 
         if (cancelled) return;
 
-        const prms = (error ? [] : (data?.perms as string[]) ?? []);
-        setPerms(prms);
-        writePermsCache({ user_id: user.id, perms: prms, cached_at: Date.now() });
+        if (error) {
+          console.error("Failed to load staff perms", error);
+          setPerms([]);
+          return;
+        }
+
+        const permissions = (data?.perms as string[]) ?? [];
+        setPerms(permissions);
+        writePermsCache({ user_id: user.id, perms: permissions, cached_at: Date.now() });
+      } catch (error) {
+        console.error("Unexpected perms error", error);
+        setPerms([]);
       } finally {
         if (!cancelled) setLoading(false);
       }
-    })();
+    };
 
-    // NÃO nos inscrevemos em onAuthStateChange (evita refresh ao focar a aba).
-    // Só limpamos cache no logout explícito (botão) ou se o utilizador mudar.
-    return () => { cancelled = true; };
+    load();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   return { perms, loading };
 }
 
-/* ---------------- Guard ---------------- */
 function useAdminGuard() {
   const navigate = useNavigate();
   const location = useLocation();
   const { perms, loading } = useStaffPerms();
   const [ready, setReady] = useState(false);
-  const sessionChecked = useRef(false);
 
   useEffect(() => {
-    let alive = true;
+    let active = true;
 
-    (async () => {
-      // valida sessão só uma vez por montagem
-      if (!sessionChecked.current) {
-        const { data } = await supabase.auth.getSession();
-        if (!alive) return;
-        if (!data.session) {
-          if (location.pathname !== "/admin/login") navigate("/admin/login", { replace: true });
-          setReady(true);
-          sessionChecked.current = true;
-          return;
-        }
-        sessionChecked.current = true;
+    const evaluate = async () => {
+      const { data } = await supabase.auth.getSession();
+      if (!active) return;
+
+      if (!data.session) {
+        if (location.pathname !== "/admin/login") navigate("/admin/login", { replace: true });
+        setReady(true);
+        return;
       }
 
-      if (loading) return;
-
-      const go = (to: string) => { if (location.pathname !== to) navigate(to, { replace: true }); };
-
-      if (!isStaffByPerms(perms)) {
-        go("/auth");
-      } else if (!canAccess(perms, location.pathname)) {
-        go("/admin");
+      if (!loading) {
+        if (!canAccess(perms, location.pathname)) navigate("/admin", { replace: true });
+        setReady(true);
       }
+    };
 
-      if (alive) setReady(true);
-    })();
-
-    return () => { alive = false; };
-  }, [loading, perms, location.pathname, navigate]);
+    evaluate();
+    return () => {
+      active = false;
+    };
+  }, [perms, loading, navigate, location.pathname]);
 
   return { ready, perms, loading };
 }
-
-/* ---------------- Online: contador + drawer ---------------- */
-type PlayerMini = { id: string; name: string; citizenid?: string | null; license?: string | null };
+type OnlinePlayer = {
+  id: string;
+  name: string;
+  citizenid: string | null;
+  license: string | null;
+  job: string | null;
+  ping: number | null;
+};
 
 function useOnlinePlayers(enabled: boolean) {
-  const [rows, setRows] = useState<PlayerMini[]>([]);
+  const [rows, setRows] = useState<OnlinePlayer[]>([]);
   const [loading, setLoading] = useState(false);
-  const [erro, setErro] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
   const fetchNow = async () => {
-    try { setLoading(true); setErro(null); setRows(await listOnlinePlayers()); }
-    catch (e:any) { setErro(e?.message ?? "Falha a carregar players online"); }
-    finally { setLoading(false); }
+    try {
+      setLoading(true);
+      setError(null);
+      const result = await listOnlinePlayers();
+      setRows(
+        result.map((row: any) => ({
+          id: String(row.id ?? ""),
+          name: row.name ?? "Sem nome",
+          citizenid: row.citizenid ?? null,
+          license: row.license ?? null,
+          job: row.job ?? null,
+          ping: row.ping ?? null,
+        }))
+      );
+    } catch (err: any) {
+      setError(err?.message ?? "Falha ao carregar jogadores online");
+    } finally {
+      setLoading(false);
+    }
   };
+
   useEffect(() => {
     if (!enabled) return;
+    let active = true;
     fetchNow();
-    const id = setInterval(fetchNow, 5000);
-    return () => clearInterval(id);
+    const id = setInterval(() => {
+      if (active) fetchNow();
+    }, 7000);
+    return () => {
+      active = false;
+      clearInterval(id);
+    };
   }, [enabled]);
-  return { rows, loading, erro, refresh: fetchNow };
+
+  return { rows, loading, error, refresh: fetchNow };
+}
+
+function useOnlineCount() {
+  const [count, setCount] = useState<number | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+
+    const refresh = async () => {
+      try {
+        const rows = await listOnlinePlayers();
+        if (!active) return;
+        setCount(Array.isArray(rows) ? rows.length : null);
+      } catch (error) {
+        if (!active) return;
+        console.error("Failed to fetch online count", error);
+        setCount(null);
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
+
+    refresh();
+    const id = setInterval(refresh, 15000);
+    return () => {
+      active = false;
+      clearInterval(id);
+    };
+  }, []);
+
+  return { count, loading };
+}
+type SearchItem =
+  | { kind: "page"; label: string; to: string; icon: (props: any) => JSX.Element }
+  | { kind: "player"; id: string; label: string }
+  | { kind: "vehicle"; id: string; plate: string; model: string; citizenid?: string | null; license?: string | null };
+
+function usePalette(open: boolean, query: string, pages: AdminNavItem[]) {
+  const [loading, setLoading] = useState(false);
+  const [players, setPlayers] = useState<SearchItem[]>([]);
+  const [vehicles, setVehicles] = useState<SearchItem[]>([]);
+
+  useEffect(() => {
+    if (!open) return;
+    const value = query.trim();
+    if (!value) {
+      setPlayers([]);
+      setVehicles([]);
+      return;
+    }
+
+    let active = true;
+
+    const run = async () => {
+      try {
+        setLoading(true);
+        const [playerResponse, vehicleResponse] = await Promise.all([
+          listPlayers({ q: value, page: 1, limit: 5, sort: "name", dir: "asc" }).catch(() => ({ data: [] })),
+          listVehiclesGlobal(value).catch(() => ({ data: [] })),
+        ]);
+        if (!active) return;
+
+        setPlayers(
+          (playerResponse.data ?? []).map((player: any) => ({ kind: "player" as const, id: player.id, label: player.name ?? player.id }))
+        );
+        setVehicles(
+          (vehicleResponse.data ?? []).map((vehicle: any) => ({
+            kind: "vehicle" as const,
+            id: vehicle.id,
+            plate: vehicle.plate ?? "sem-plate",
+            model: vehicle.model ?? "Sem modelo",
+            citizenid: vehicle.citizenid ?? null,
+            license: vehicle.license ?? null,
+          }))
+        );
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
+
+    run();
+    return () => {
+      active = false;
+    };
+  }, [open, query]);
+
+  const pageItems = useMemo(() => {
+    const value = query.trim().toLowerCase();
+    const items = pages.map((item) => ({ kind: "page" as const, label: item.label, to: item.to, icon: item.icon }));
+    if (!value) return items.slice(0, 6);
+    return items.filter((item) => item.label.toLowerCase().includes(value));
+  }, [pages, query]);
+
+  return { loading, pageItems, players, vehicles };
+}
+function CommandPalette({
+  open,
+  onClose,
+  navigate,
+  pages,
+}: {
+  open: boolean;
+  onClose: () => void;
+  navigate: ReturnType<typeof useNavigate>;
+  pages: AdminNavItem[];
+}) {
+  const [query, setQuery] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+  const { loading, pageItems, players, vehicles } = usePalette(open, query, pages);
+
+  useEffect(() => {
+    if (!open) return;
+    setQuery("");
+    inputRef.current?.focus();
+  }, [open]);
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+      if (event.key === "Enter") {
+        const first = pageItems[0] ?? players[0] ?? vehicles[0];
+        if (first) handleSelect(first);
+      }
+    };
+    if (open) document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [open, pageItems, players, vehicles]);
+
+  const handleSelect = (item: SearchItem) => {
+    onClose();
+    if (item.kind === "page") {
+      navigate(item.to);
+      return;
+    }
+    if (item.kind === "player") {
+      navigate(`/admin/users/profiles/${encodeURIComponent(item.id)}`);
+      return;
+    }
+    if (item.kind === "vehicle") {
+      const ref = item.citizenid || item.license || item.plate;
+      navigate(`/admin/users/profiles/${encodeURIComponent(String(ref))}?tab=vehicles`);
+    }
+  };
+
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/60 px-4 py-24 sm:py-20">
+      <div className="w-full max-w-3xl overflow-hidden rounded-3xl border border-white/15 bg-[#050509]/95 text-white shadow-[0_35px_80px_rgba(6,6,20,0.55)]">
+        <div className="flex items-center gap-3 border-b border-white/10 bg-white/5 px-5 py-4">
+          <Icon.search className="h-4 w-4 text-white/50" />
+          <input
+            ref={inputRef}
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Pesquisar paginas, utilizadores ou veiculos"
+            className="w-full bg-transparent text-sm outline-none placeholder:text-white/40"
+          />
+          <span className="rounded-full border border-white/20 px-2 py-1 text-[10px] uppercase tracking-wider text-white/50">
+            Esc
+          </span>
+        </div>
+
+        <div className="grid gap-6 px-5 py-5 sm:grid-cols-2">
+          <div>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-white/40">Navegacao</p>
+            <div className="space-y-2">
+              {pageItems.map((item) => (
+                <button
+                  key={item.to}
+                  onClick={() => handleSelect(item)}
+                  className="flex w-full items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-left text-sm transition hover:border-white/20 hover:bg-white/10"
+                >
+                  <item.icon className="h-4 w-4 text-white/70" />
+                  <span>{item.label}</span>
+                </button>
+              ))}
+              {!pageItems.length && <p className="text-sm text-white/50">Sem resultados.</p>}
+            </div>
+          </div>
+
+          <div className="space-y-5">
+            <div>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-white/40">Jogadores</p>
+              <div className="space-y-2">
+                {players.map((player) => (
+                  <button
+                    key={player.id}
+                    onClick={() => handleSelect(player)}
+                    className="flex w-full items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-left text-sm transition hover:border-white/20 hover:bg-white/10"
+                  >
+                    <span className="truncate">{player.label}</span>
+                    <span className="text-xs text-white/40">ID: {player.id}</span>
+                  </button>
+                ))}
+                {!players.length && <p className="text-sm text-white/50">Nenhum jogador encontrado.</p>}
+              </div>
+            </div>
+
+            <div>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-white/40">Veiculos</p>
+              <div className="space-y-2">
+                {vehicles.map((vehicle) => (
+                  <button
+                    key={vehicle.id}
+                    onClick={() => handleSelect(vehicle)}
+                    className="flex w-full items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-left text-sm transition hover:border-white/20 hover:bg-white/10"
+                  >
+                    <span className="truncate">{vehicle.model}</span>
+                    <span className="text-xs text-white/40">{vehicle.plate}</span>
+                  </button>
+                ))}
+                {!vehicles.length && <p className="text-sm text-white/50">Nenhum veiculo encontrado.</p>}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between border-t border-white/10 bg-white/5 px-5 py-3 text-xs text-white/40">
+          <span>{loading ? "A pesquisar..." : "Ctrl + K para abrir rapidamente"}</span>
+          <button onClick={onClose} className="rounded-full border border-white/20 px-3 py-1 text-white/60 transition hover:border-white/40 hover:text-white">
+            Fechar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+function AvatarMenu({ email, onLogout }: { email: string | null; onLogout: () => void }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const onClick = (event: MouseEvent) => {
+      if (!ref.current) return;
+      if (!ref.current.contains(event.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", onClick);
+    return () => document.removeEventListener("mousedown", onClick);
+  }, []);
+
+  const initials = getInitials(email);
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={() => setOpen((value) => !value)}
+        className="h-9 w-9 rounded-full bg-white text-black font-semibold shadow hover:opacity-90"
+        aria-haspopup="menu"
+        aria-expanded={open}
+      >
+        {initials}
+      </button>
+      {open && (
+        <div className="absolute right-0 mt-3 w-64 overflow-hidden rounded-3xl border border-white/10 bg-[#08080d] text-white shadow-xl">
+          <div className="flex items-center gap-3 border-b border-white/10 px-4 py-4">
+            <div className="h-10 w-10 rounded-full bg-white text-black font-semibold grid place-items-center">{initials}</div>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold">Administrator</p>
+              <p className="truncate text-xs text-white/60">{email ?? "Conta sem email"}</p>
+            </div>
+          </div>
+          <button
+            className="flex w-full items-center gap-2 px-4 py-3 text-sm text-white/80 transition hover:bg-white/10"
+            onClick={() => alert("Area de conta em desenvolvimento")}
+          >
+            <Icon.key className="h-4 w-4" /> Minha conta
+          </button>
+          <button
+            className="flex w-full items-center gap-2 px-4 py-3 text-sm text-white/80 transition hover:bg-white/10"
+            onClick={onLogout}
+          >
+            <Icon.logout className="h-4 w-4" /> Terminar sessao
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+function MobileSidebar({
+  open,
+  onClose,
+  groups,
+  pathname,
+}: {
+  open: boolean;
+  onClose: () => void;
+  groups: Array<{ id: AdminNavSectionId; label: string; description?: string; items: AdminNavItem[] }>;
+  pathname: string;
+}) {
+  if (!open) return null;
+  return (
+    <>
+      <div className="fixed inset-0 z-40 bg-black/50 md:hidden" onClick={onClose} />
+      <aside className="fixed left-0 top-0 bottom-0 z-50 w-72 bg-[#06060a] border-r border-white/10 p-4 md:hidden">
+        <div className="flex items-center justify-between">
+          <p className="text-sm font-semibold">Menu</p>
+          <button className="rounded-lg border border-white/15 bg-white/10 p-2 text-white/70" onClick={onClose}>
+            <Icon.chevronLeft className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="mt-5 space-y-5">
+          {groups.map((section) => {
+            const accent = SECTION_ACCENT[section.id];
+            return (
+              <div key={section.id}>
+                <p className="px-1 text-[11px] font-semibold uppercase tracking-wide text-white/45">{section.label}</p>
+                <nav className="mt-2 flex flex-col gap-2">
+                  {section.items.map((item) => {
+                    const isActive = item.exact
+                      ? pathname === item.to
+                      : pathname === item.to || pathname.startsWith(`${item.to}/`);
+                    const accentStyles = SECTION_ACCENT[item.section];
+                    const ItemIcon = item.icon;
+                    return (
+                      <NavLink
+                        key={item.to}
+                        to={item.to}
+                        end={!!item.exact}
+                        onClick={onClose}
+                        className={cx(
+                          "flex items-center gap-3 rounded-2xl border px-3 py-2 text-sm transition",
+                          isActive
+                            ? `border-white/25 bg-gradient-to-r ${accentStyles.pill} text-black`
+                            : "border-transparent text-white/80 hover:border-white/20 hover:bg-white/10"
+                        )}
+                      >
+                        <span
+                          className={cx(
+                            "flex h-9 w-9 items-center justify-center rounded-xl border bg-white/5 text-white",
+                            accent.border,
+                            isActive ? "bg-white text-black" : ""
+                          )}
+                        >
+                          <ItemIcon className={cx("h-4 w-4", isActive ? "text-black" : "text-white/70")} />
+                        </span>
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-semibold">{item.label}</p>
+                          <p className="truncate text-xs text-white/45">{sectionLabelMap.get(item.section)}</p>
+                        </div>
+                      </NavLink>
+                    );
+                  })}
+                </nav>
+              </div>
+            );
+          })}
+        </div>
+      </aside>
+    </>
+  );
 }
 
 function OnlineDrawer({
@@ -266,541 +772,512 @@ function OnlineDrawer({
   onClose: () => void;
   navigateToPlayer: (id: string) => void;
 }) {
-  const { rows, loading, erro, refresh } = useOnlinePlayers(open);
-  const [q, setQ] = React.useState("");
+  const { rows, loading, error, refresh } = useOnlinePlayers(open);
+  const [query, setQuery] = useState("");
 
-  // limpar query quando fecha
-  React.useEffect(() => { if (!open) setQ(""); }, [open]);
-
-  // bloquear scroll do body quando aberto
-  React.useEffect(() => {
-    if (!open) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => { document.body.style.overflow = prev; };
+  useEffect(() => {
+    if (!open) setQuery("");
   }, [open]);
 
-  const filtered = React.useMemo(() => {
-    const s = q.trim().toLowerCase();
-    if (!s) return rows;
-    return rows.filter(r =>
-      r.name.toLowerCase().includes(s) ||
-      (r.citizenid ?? "").toLowerCase().includes(s) ||
-      (r.license ?? "").toLowerCase().includes(s) ||
-      r.id.includes(s)
+  useEffect(() => {
+    if (!open) return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previous;
+    };
+  }, [open]);
+
+  const filtered = useMemo(() => {
+    const term = query.trim().toLowerCase();
+    if (!term) return rows;
+    return rows.filter((player) =>
+      player.name.toLowerCase().includes(term) ||
+      (player.citizenid ?? "").toLowerCase().includes(term) ||
+      (player.license ?? "").toLowerCase().includes(term) ||
+      player.id.toLowerCase().includes(term)
     );
-  }, [rows, q]);
+  }, [rows, query]);
+
+  if (!open) return null;
 
   return (
-    <>
-      {/* backdrop */}
-      <div
-        className={cx(
-          "fixed inset-0 z-40 bg-black/40 transition-opacity",
-          open ? "opacity-100" : "pointer-events-none opacity-0"
-        )}
-        onClick={onClose}
-      />
-      {/* drawer */}
-      <div
-        className={cx(
-          "fixed inset-y-0 right-0 z-50 w-[min(92vw,420px)] transform border-l border-white/10 bg-[#0b0b0c] text-white transition-transform duration-300 shadow-2xl",
-          open ? "translate-x-0" : "translate-x-full"
-        )}
-        role="dialog"
-        aria-modal="true"
-        aria-label="Players online"
-      >
-        <div className="h-14 flex items-center justify-between px-4 border-b border-white/10 bg-white/5">
-          <div className="font-semibold">Players online</div>
-          <div className="flex items-center gap-2">
-            {loading && <Spinner />}
+    <div className="fixed inset-0 z-40 flex justify-end bg-black/60">
+      <aside className="flex h-full w-full max-w-md flex-col border-l border-white/10 bg-[#050509] text-white shadow-2xl">
+        <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
+          <div>
+            <p className="text-sm font-semibold">Jogadores online</p>
+            <p className="text-xs text-white/50">{rows.length} jogadores conectados</p>
+          </div>
+          <button className="rounded-lg border border-white/15 bg-white/10 p-2 text-white/70" onClick={onClose}>
+            <Icon.chevronRight className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="border-b border-white/10 px-5 py-4">
+          <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-3 py-2">
+            <Icon.search className="h-4 w-4 text-white/50" />
+            <input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Filtrar por nome, citizenid ou licenca"
+              className="w-full bg-transparent text-sm outline-none placeholder:text-white/40"
+            />
             <button
-              className="px-2 py-1 rounded bg-white/10 hover:bg-white/15 text-xs"
               onClick={refresh}
-              disabled={loading}
+              className="rounded-xl border border-white/15 bg-white/10 px-2 py-1 text-xs text-white/60 hover:text-white"
             >
               Atualizar
             </button>
-            <button className="px-2 py-1 rounded bg-white/10 hover:bg-white/15" onClick={onClose}>
-              Fechar
-            </button>
           </div>
         </div>
 
-        <div className="p-3 border-b border-white/10">
-          <div className="relative">
-            {/* Usa o mesmo Icon.Search que tens acima */}
-            <svg viewBox="0 0 24 24" className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-white/50" fill="none" stroke="currentColor">
-              <circle cx="11" cy="11" r="7" strokeWidth="2" />
-              <path d="m20 20-3.5-3.5" strokeWidth="2" strokeLinecap="round" />
-            </svg>
-            <input
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder="Pesquisar por nome, citizenid, licença…"
-              className="w-full rounded-lg border border-white/10 bg-black/30 text-white pl-8 pr-3 py-2 outline-none focus:ring-2 focus:ring-white/20"
-            />
-          </div>
-          {erro && (
-            <div className="mt-2 rounded border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">
-              {erro}
-            </div>
-          )}
-        </div>
-
-        <div className="p-3 overflow-y-auto h-[calc(100vh-3.5rem-76px)]">
-          {loading && rows.length === 0 ? (
-            <div className="text-sm text-white/60">A carregar…</div>
-          ) : filtered.length === 0 ? (
-            <div className="text-sm text-white/60">Sem players.</div>
-          ) : (
-            <ul className="space-y-2">
-              {filtered.map((p) => (
-                <li
-                  key={p.id}
-                  className="rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 transition"
-                >
-                  <button
-                    className="w-full text-left p-3 flex items-center gap-3"
-                    onClick={() => { navigateToPlayer(p.id); onClose(); }}
-                    title={p.name}
-                  >
-                    <div className="h-8 w-8 rounded-full bg-white/10 grid place-items-center text-xs text-white/70">
-                      {getInitials(p.name)}
-                    </div>
-                    <div className="min-w-0">
-                      <div className="font-medium truncate">{p.name}</div>
-                      <div className="text-xs text-white/60 mt-0.5 truncate">
-                        id: {p.id}
-                        {p.citizenid ? <> · cid: {p.citizenid}</> : null}
-                        {p.license ? <> · lic: {p.license}</> : null}
-                      </div>
-                    </div>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      </div>
-    </>
-  );
-}
-
-
-function useOnlineCount() {
-  const [count, setCount] = useState<number | null>(null);
-  const [loading, setLoading] = useState(true);
-  useEffect(() => {
-    let alive = true;
-    const load = async () => {
-      try { const d = await listOnlinePlayers(); if (alive) setCount(d.length); }
-      catch { if (alive) setCount(null); }
-      finally { if (alive) setLoading(false); }
-    };
-    load();
-    const id = setInterval(load, 15000);
-    return () => { alive = false; clearInterval(id); };
-  }, []);
-  return { count, loading };
-}
-
-/* ---------------- Avatar + dropdown ---------------- */
-function useOutside(ref: React.RefObject<HTMLElement>, onOutside: () => void) {
-  useEffect(() => {
-    function onClick(e: MouseEvent) {
-      if (!ref.current) return;
-      if (!ref.current.contains(e.target as Node)) onOutside();
-    }
-    document.addEventListener("mousedown", onClick);
-    return () => document.removeEventListener("mousedown", onClick);
-  }, [ref, onOutside]);
-}
-function AvatarMenu({ email, onLogout }: { email: string | null; onLogout: () => void }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  useOutside(ref, () => setOpen(false));
-  const initials = getInitials(email);
-  return (
-    <div className="relative" ref={ref}>
-      <button
-        onClick={() => setOpen((v) => !v)}
-        className="h-8 w-8 rounded-full bg-white text-black font-semibold grid place-items-center hover:opacity-90"
-        title={email ?? "Conta"}
-        aria-haspopup="menu"
-        aria-expanded={open}
-      >
-        {initials}
-      </button>
-
-      <div className={cx(
-        "absolute right-0 mt-2 w-64 rounded-2xl border border-white/10 bg-[#0b0b0c] text-white shadow-xl overflow-hidden transition-all",
-        open ? "opacity-100 translate-y-0" : "pointer-events-none opacity-0 -translate-y-1"
-      )} role="menu">
-        <div className="px-3 py-3 border-b border-white/10">
-          <div className="flex items-center gap-3">
-            <div className="h-9 w-9 rounded-full bg-white text-black font-semibold grid place-items-center">{initials}</div>
-            <div className="min-w-0">
-              <div className="text-sm font-medium truncate">Admin</div>
-              <div className="text-xs text-white/60 truncate">{email ?? "—"}</div>
-            </div>
+        <div className="flex-1 overflow-y-auto px-5 py-4">
+          {loading && <p className="text-sm text-white/60">A carregar lista de jogadores...</p>}
+          {error && <p className="text-sm text-rose-300">{error}</p>}
+          {!loading && !filtered.length && <p className="text-sm text-white/60">Nenhum jogador corresponde ao filtro.</p>}
+          <div className="space-y-3">
+            {filtered.map((player) => (
+              <button
+                key={player.id}
+                onClick={() => {
+                  navigateToPlayer(player.id);
+                  onClose();
+                }}
+                className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-left transition hover:border-white/20 hover:bg-white/10"
+              >
+                <div className="flex items-center justify-between">
+                  <p className="font-semibold">{player.name}</p>
+                  <span className="text-xs text-white/50">Ping: {player.ping ?? "-"} ms</span>
+                </div>
+                <p className="mt-1 text-xs text-white/45">CitizenID: {player.citizenid ?? "—"}</p>
+                <p className="text-xs text-white/45">Licenca: {player.license ?? "—"}</p>
+              </button>
+            ))}
           </div>
         </div>
-        <button className="w-full text-left px-3 py-2 text-sm hover:bg-white/10 flex items-center gap-2" onClick={() => alert("Minha conta (breve)")}>
-          <Icon.External className="h-4 w-4" /> Minha conta
-        </button>
-        <button className="w-full text-left px-3 py-2 text-sm hover:bg-white/10 flex items-center gap-2" onClick={onLogout}>
-          <Icon.Logout className="h-4 w-4" /> Terminar sessão
-        </button>
-      </div>
+      </aside>
     </div>
   );
 }
-
-/* ---------------- Command Palette (⌘K) ---------------- */
-type SearchItem =
-  | { kind: "page"; label: string; to: string; icon: keyof typeof Icon }
-  | { kind: "player"; id: string; label: string }
-  | { kind: "vehicle"; id: string; plate: string; model: string; citizenid?: string|null; license?: string|null };
-
-const STATIC_PAGES: SearchItem[] = [
-  { kind: "page", label: "Dashboard", to: "/admin", icon: "Home" },
-  { kind: "page", label: "Players", to: "/admin/players", icon: "Users" },
-  { kind: "page", label: "txAdmin", to: "/admin/txadmin", icon: "Server" },
-  { kind: "page", label: "Candidaturas", to: "/admin/candidaturas", icon: "Clipboard" },
-  { kind: "page", label: "Logs", to: "/admin/logs", icon: "Logs" },
-  { kind: "page", label: "Imagens", to: "/admin/imagens", icon: "Image" },
-];
-
-function usePalette(open: boolean, query: string) {
-  const [loading, setLoading] = useState(false);
-  const [players, setPlayers] = useState<SearchItem[]>([]);
-  const [vehicles, setVehicles] = useState<SearchItem[]>([]);
-
-  useEffect(() => {
-    if (!open) return;
-    const q = query.trim();
-    if (!q) { setPlayers([]); setVehicles([]); return; }
-
-    let aborted = false;
-    const doSearch = async () => {
-      try {
-        setLoading(true);
-        const [p, v] = await Promise.all([
-          listPlayers({ q, page: 1, limit: 5, sort: "name", dir: "asc" }).catch(() => ({ data: [] })),
-          listVehiclesGlobal(q).catch(() => ({ data: [] })),
-        ]);
-        if (aborted) return;
-        setPlayers((p.data ?? []).map((r: any) => ({ kind: "player", id: r.id, label: r.name })));
-        setVehicles((v.data ?? []).map((r: any) => ({ kind: "vehicle", id: r.id, plate: r.plate, model: r.model, citizenid: r.citizenid, license: r.license })));
-      } finally {
-        if (!aborted) setLoading(false);
-      }
-    };
-    doSearch();
-    return () => { aborted = true; };
-  }, [open, query]);
-
-  const pageHits = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return STATIC_PAGES.slice(0, 5);
-    return STATIC_PAGES.filter(p => p.label.toLowerCase().includes(q));
-  }, [query]);
-
-  return { loading, pageHits, players, vehicles };
-}
-
-function CommandPalette({
-  open, onClose, navigate,
-}: { open: boolean; onClose: () => void; navigate: ReturnType<typeof useNavigate> }) {
-  const [q, setQ] = useState("");
-  const inputRef = useRef<HTMLInputElement>(null);
-  const { loading, pageHits, players, vehicles } = usePalette(open, q);
-
-  useEffect(() => {
-    if (open) {
-      setTimeout(() => inputRef.current?.focus(), 0);
-      const prev = document.body.style.overflow;
-      document.body.style.overflow = "hidden";
-      return () => { document.body.style.overflow = prev; };
-    } else {
-      setQ("");
-    }
-  }, [open]);
-
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
-    }
-    if (!open) return;
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
-
-  function go(item: SearchItem) {
-    if (item.kind === "page") {
-      navigate(item.to);
-    } else if (item.kind === "player") {
-      navigate(`/admin/players/${encodeURIComponent(item.id)}`);
-    } else if (item.kind === "vehicle") {
-      const ref = item.citizenid || item.license || item.plate;
-      navigate(`/admin/players/${encodeURIComponent(String(ref))}?tab=garage`);
-    }
-    onClose();
-  }
-
-  return (
-    <>
-      <div className={cx("fixed inset-0 z-50 bg-black/40 transition-opacity", open ? "opacity-100" : "pointer-events-none opacity-0")} onClick={onClose} />
-      <div className={cx("fixed left-1/2 top-16 z-50 w-[min(92vw,720px)] -translate-x-1/2 transition-all",
-                         open ? "opacity-100 translate-y-0" : "pointer-events-none opacity-0 -translate-y-2")}>
-        <div className="rounded-2xl border border-white/10 bg-[#0b0b0c] shadow-2xl overflow-hidden">
-          <div className="flex items-center gap-2 px-3 py-2 border-b border-white/10">
-            <Icon.Search className="h-4 w-4 text-white/60" />
-            <input ref={inputRef} value={q} onChange={(e)=>setQ(e.target.value)} placeholder="Pesquisa global…"
-                   className="flex-1 bg-transparent outline-none text-white placeholder:text-white/50 py-2" />
-            <span className="text-[10px] text-white/40 hidden sm:inline">Esc para fechar</span>
-          </div>
-
-          <div className="max-h-[60vh] overflow-y-auto p-3 grid grid-cols-1 md:grid-cols-3 gap-3">
-            <div className="rounded-xl border border-white/10 bg-white/5">
-              <div className="px-3 py-2 text-xs text-white/60 border-b border-white/10">Páginas</div>
-              <ul className="p-1">
-                {pageHits.map((p) => {
-                  const I = Icon[p.icon];
-                  return (
-                    <li key={p.to}>
-                      <button className="w-full text-left px-3 py-2 rounded-lg hover:bg-white/10 flex items-center gap-2"
-                              onClick={()=>go(p)}>
-                        <I className="h-4 w-4" /> {p.label}
-                      </button>
-                    </li>
-                  );
-                })}
-                {pageHits.length === 0 && <div className="px-3 py-2 text-xs text-white/50">{loading ? "A carregar…" : "Sem resultados"}</div>}
-              </ul>
-            </div>
-
-            <div className="rounded-xl border border-white/10 bg-white/5">
-              <div className="px-3 py-2 text-xs text-white/60 border-b border-white/10">Players</div>
-              <ul className="p-1">
-                {players.map((p) => (
-                  <li key={`pl-${p.id}`}>
-                    <button className="w-full text-left px-3 py-2 rounded-lg hover:bg-white/10 flex items-center gap-2"
-                            onClick={()=>go(p)}>
-                      <div className="h-6 w-6 rounded-full bg-white/10 grid place-items-center text-[10px]">{getInitials(p.label)}</div>
-                      <span className="truncate">{p.label}</span>
-                    </button>
-                  </li>
-                ))}
-                {players.length === 0 && <div className="px-3 py-2 text-xs text-white/50">{loading ? "A carregar…" : "Escreve para procurar"}</div>}
-              </ul>
-            </div>
-
-            <div className="rounded-xl border border-white/10 bg-white/5">
-              <div className="px-3 py-2 text-xs text-white/60 border-b border-white/10">Carros</div>
-              <ul className="p-1">
-                {vehicles.map((v) => (
-                  <li key={`vh-${v.id}`}>
-                    <button className="w-full text-left px-3 py-2 rounded-lg hover:bg-white/10"
-                            onClick={()=>go(v)}>
-                      <div className="text-sm font-medium truncate">{v.model || "(modelo desconhecido)"}</div>
-                      <div className="text-xs text-white/60 truncate">Matrícula: {v.plate} {v.citizenid ? `· cid: ${v.citizenid}` : ""}</div>
-                    </button>
-                  </li>
-                ))}
-                {vehicles.length === 0 && <div className="px-3 py-2 text-xs text-white/50">{loading ? "A carregar…" : "Escreve para procurar"}</div>}
-              </ul>
-            </div>
-          </div>
-        </div>
-      </div>
-    </>
-  );
-}
-
-/* ---------------- Layout ---------------- */
 export default function AdminLayout() {
   const { ready, perms, loading } = useAdminGuard();
   const navigate = useNavigate();
   const location = useLocation();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [onlineOpen, setOnlineOpen] = useState(false);
   const [email, setEmail] = useState<string | null>(null);
 
-  // online
-  const [onlineOpen, setOnlineOpen] = useState(false);
-  const { count: onlineCount, loading: countLoading } = useOnlineCount();
-
-  // command palette
-  const [paletteOpen, setPaletteOpen] = useState(false);
   useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
-        e.preventDefault(); setPaletteOpen((v) => !v);
+    const fetchUser = async () => {
+      const { data } = await supabase.auth.getUser();
+      setEmail(data.user?.email ?? null);
+    };
+    fetchUser();
+  }, []);
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setPaletteOpen(true);
       }
-    }
+    };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  useEffect(() => { supabase.auth.getUser().then(({ data }) => setEmail(data.user?.email ?? null)); }, []);
-  const onLogout = async () => {
-    clearPermsCache();               // limpa cache no logout
-    await supabase.auth.signOut();
-    navigate("/admin/login", { replace: true });
-  };
+  const { count: onlineCount, loading: countLoading } = useOnlineCount();
 
-  // Navegação com ACL por item
-  const nav = useMemo(() => {
-    const all = [
-      { to: "/admin", label: "Dashboard", icon: Icon.Home, exact: true, need: "staff" as const },
-      { to: "/admin/players", label: "Players", icon: Icon.Users, need: ACL["/admin/players"] as string[] },
-      { to: "/admin/txadmin", label: "txAdmin", icon: Icon.Server, need: ACL["/admin/txadmin"] as string[] },
-      { to: "/admin/candidaturas", label: "Candidaturas", icon: Icon.Clipboard, need: ACL["/admin/candidaturas"] as string[] },
-      { to: "/admin/logs", label: "Logs", icon: Icon.Logs, need: ACL["/admin/logs"] as string[] },
-      { to: "/admin/imagens", label: "Imagens", icon: Icon.Image, need: ACL["/admin/imagens"] as string[] },
-      { to: "/admin/resources", label: "Recursos", icon: Icon.Image, need: ACL["/admin/resources"] as string[] },
-      { to: "/admin/devleaders", label: "Dev Leaders", icon: Icon.Image, need: ACL["/admin/devleaders"] as string[] },
-      { to: "/admin/devwork", label: "Dev Work", icon: Icon.Clipboard, need: ACL["/admin/devwork"] as string[] },
+  const navItems = useMemo<AdminNavItem[]>(() => {
+    const base: AdminNavItem[] = [
+      { to: "/admin", label: "Dashboard", icon: Icon.dashboard, exact: true, need: "staff", section: "overview" },
+      { to: "/admin/users", label: "Utilizadores & Perfis", icon: Icon.users, need: ACL["/admin/users"] as string[], section: "people" },
+      { to: "/admin/roles", label: "Papeis & Permissoes", icon: Icon.shield, need: ACL["/admin/roles"] as string[], section: "people" },
+      { to: "/admin/api", label: "Chaves de API", icon: Icon.key, need: ACL["/admin/api"] as string[], section: "governance" },
+      { to: "/admin/api/files", label: "Ficheiros", icon: Icon.book, need: ACL["/admin/api/files"] as string[], section: "governance" },
+      { to: "/admin/news", label: "News", icon: Icon.news, need: ACL["/admin/news"] as string[], section: "content" },
+      { to: "/admin/events", label: "Events", icon: Icon.news, need: ACL["/admin/events"] as string[], section: "content" },
+      { to: "/admin/rules", label: "Regras", icon: Icon.book, need: ACL["/admin/rules"] as string[], section: "content" },
+      { to: "/admin/punishments", label: "Punicoes", icon: Icon.shield, need: ACL["/admin/punishments"] as string[], section: "content" },
+      { to: "/admin/support", label: "Tickets de Suporte", icon: Icon.support, need: ACL["/admin/support"] as string[], section: "operations" },
+      { to: "/admin/support/reports", label: "Reports & Incidentes", icon: Icon.support, need: ACL["/admin/support/reports"] as string[], section: "operations" },
+      { to: "/admin/development", label: "Tasks", icon: Icon.code, need: ACL["/admin/development"] as string[], section: "dev" },
+      { to: "/admin/development/time", label: "Time Tracking", icon: Icon.activity, need: ACL["/admin/development/time"] as string[], section: "dev" },
+      { to: "/admin/applications", label: "Candidaturas", icon: Icon.form, need: ACL["/admin/applications"] as string[], section: "operations" },
+      { to: "/admin/discord", label: "Integracao Discord", icon: Icon.discord, need: ACL["/admin/discord"] as string[], section: "people" },
+      { to: "/admin/logs", label: "Log de Eventos", icon: Icon.activity, need: ACL["/admin/logs"] as string[], section: "operations" },
+      { to: "/admin/settings", label: "Definicoes", icon: Icon.settings, need: ACL["/admin/settings"] as string[], section: "governance" },
     ];
-    if (isGestao(perms)) return all;
-    return all.filter(i => (i.need === "staff" ? isStaffByPerms(perms) : hasAny(perms, i.need)));
+
+    if (isManagement(perms)) return base;
+    return base.filter((item) => (item.need === "staff" ? isStaffByPerms(perms) : hasAny(perms, item.need)));
   }, [perms]);
+
+  const groupedNav = useMemo(() => {
+  return NAV_SECTIONS.map((section) => ({
+    ...section,
+    items: navItems.filter((item) => item.section === section.id),
+  })).filter((section) => section.items.length > 0);
+}, [navItems]);
+
+  const sectionLabelMap = useMemo(() => {
+    const map = new Map<AdminNavSectionId, string>();
+    NAV_SECTIONS.forEach((section) => map.set(section.id, section.label));
+    return map;
+  }, []);
+
+  const activeNavItem = useMemo(() => {
+    const ordered = [...navItems].sort((a, b) => b.to.length - a.to.length);
+    return (
+      ordered.find((item) => {
+        if (item.exact) return location.pathname === item.to;
+        return location.pathname === item.to || location.pathname.startsWith(`${item.to}/`);
+      }) ?? ordered[0] ?? null
+    );
+  }, [navItems, location.pathname]);
+
+  const activeSectionMeta = useMemo(() => {
+    if (!activeNavItem) return null;
+    return NAV_SECTIONS.find((section) => section.id === activeNavItem.section) ?? null;
+  }, [activeNavItem]);
+
+  const isDashboard = activeNavItem?.to === "/admin";
+
+  const dashboardStats = useMemo(() => {
+    const now = new Date();
+    const dayFormatter = new Intl.DateTimeFormat("pt-PT", { day: "2-digit", month: "short" });
+    const weekdayFormatter = new Intl.DateTimeFormat("pt-PT", { weekday: "long" });
+
+    return [
+      {
+        label: "Jogadores online",
+        value: countLoading ? "..." : String(onlineCount ?? 0),
+        note: "Atualiza a cada 15s",
+        icon: Icon.users,
+      },
+      {
+        label: "Secao ativa",
+        value: activeNavItem?.label ?? "—",
+        note: activeSectionMeta?.label ?? "Navegacao",
+        icon: Icon.dashboard,
+      },
+      {
+        label: "Pesquisa global",
+        value: "Ctrl + K",
+        note: "Abre a command palette",
+        icon: Icon.search,
+      },
+      {
+        label: "Hoje",
+        value: dayFormatter.format(now),
+        note: weekdayFormatter.format(now),
+        icon: Icon.activity,
+      },
+    ];
+  }, [countLoading, onlineCount, activeNavItem, activeSectionMeta]);
 
   const breadcrumb = useMemo(() => {
     const path = location.pathname.replace(/\/+$/, "");
     if (path === "/admin" || path === "/admin/") return ["Dashboard"];
-    const segs = path.split("/").filter(Boolean).slice(1);
-    const map: Record<string, string> = Object.fromEntries(nav.map((i) => [i.to.split("/").pop()!, i.label]));
-    return ["Dashboard", ...segs.map((s) => map[s] ?? s)];
-  }, [location.pathname, nav]);
+    const segments = path.split("/").filter(Boolean).slice(1);
+    const map = new Map<string, string>();
+    navItems.forEach((item) => {
+      const key = item.to.split("/").filter(Boolean).pop();
+      if (key) map.set(key, item.label);
+    });
+    return ["Dashboard", ...segments.map((segment) => map.get(segment) ?? segment)];
+  }, [location.pathname, navItems]);
+
+  const activeAccent = useMemo(() => {
+    const sectionId = activeSectionMeta?.id ?? "overview";
+    return SECTION_ACCENT[sectionId as AdminNavSectionId];
+  }, [activeSectionMeta]);
+
+  const quickActions = useMemo<QuickAction[]>(() => [
+    {
+      label: "Abrir pesquisa",
+      description: "Ctrl + K",
+      icon: Icon.search,
+      onTrigger: () => setPaletteOpen(true),
+    },
+    {
+      label: "Novo ticket",
+      description: "Suporte & Reports",
+      icon: Icon.support,
+      onTrigger: () => navigate("/admin/support?dialog=new"),
+    },
+    {
+      label: "Publicar noticia",
+      description: "News & Events",
+      icon: Icon.news,
+      onTrigger: () => navigate("/admin/news?dialog=new"),
+    },
+  ], [navigate]);
+  const onLogout = async () => {
+    clearPermsCache();
+    await supabase.auth.signOut();
+    navigate("/admin/login", { replace: true });
+  };
 
   if (!ready || loading) {
-    return (
-      <div className="min-h-screen grid place-items-center bg-[#0b0b0c] text-white">
-        <div className="flex items-center gap-2 text-sm text-white/70"><Spinner /> A validar permissões…</div>
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-screen bg-[#0b0b0c] text-white">
-      {/* Topbar */}
-      <header className="h-14 border-b border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.02))] backdrop-blur flex items-center justify-between px-3 md:px-4">
-        <div className="flex items-center gap-2 md:gap-3">
-          <button className="md:hidden p-2 rounded-lg bg-white/10 hover:bg-white/15" onClick={() => setMobileOpen(true)} aria-label="Abrir menu">
-            <Icon.Menu className="h-5 w-5" />
-          </button>
-          <img src="/logo.svg" alt="Logo" className="h-8 w-8 rounded-xl bg-white/10 p-1" onError={(e)=>((e.currentTarget as HTMLImageElement).style.display="none")} />
-          <h1 className="text-sm md:text-base font-semibold">Painel de Administração</h1>
-        </div>
-
-        {/* Pesquisa global (abre palette) */}
-        <div className="hidden md:flex items-center flex-1 max-w-xl mx-3">
-          <button onClick={()=>setPaletteOpen(true)} className="group relative w-full text-left">
-            <div className="relative w-full">
-              <Icon.Search className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-white/50" />
-              <div className="w-full rounded-lg border border-white/10 bg-black/30 text-white pl-8 pr-3 py-1.5 group-hover:bg-black/40 transition">
-                <span className="text-white/50">Pesquisa global…</span>
-                <span className="float-right text-[10px] text-white/40">⌘K</span>
-              </div>
-            </div>
-          </button>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <button onClick={() => setOnlineOpen(true)} className="text-xs px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/15" title="Ver players online">
-            {countLoading ? <span className="inline-flex items-center gap-2"><Spinner /> Players</span> : <>Players: {onlineCount ?? "—"}</>}
-          </button>
-          <AvatarMenu email={email} onLogout={onLogout} />
-        </div>
-      </header>
-
-      {/* Body */}
-      <div className="flex">
-        {/* Sidebar desktop */}
-        <aside className={cx("hidden md:flex flex-col gap-2 border-r border-white/10 bg-white/[0.04] backdrop-blur p-3 transition-all duration-300", collapsed ? "w-16" : "w-64")}>
-          <button className="self-end text-white/70 hover:text-white text-xs px-2 py-1 rounded-lg bg-white/10" onClick={() => setCollapsed((v) => !v)} aria-label="Alternar sidebar" title={collapsed ? "Expandir" : "Colapsar"}>
-            {collapsed ? <Icon.ChevronRight className="h-4 w-4" /> : <Icon.ChevronLeft className="h-4 w-4" />}
-          </button>
-          {!collapsed && <div className="text-xs text-white/50 px-1">Menu</div>}
-          <nav className="mt-1 flex flex-col gap-1">
-            {nav.map((l) => {
-              const isActive = l.exact ? location.pathname === "/admin" : location.pathname.startsWith(l.to);
-              const I = l.icon;
-              return (
-                <NavLink key={l.to} to={l.to} end={!!l.exact} title={l.label}
-                  className={cx("px-3 py-2 rounded-xl text-sm flex items-center gap-3 transition",
-                                isActive ? "bg-white text-black shadow-sm" : "text-white/80 hover:text-white hover:bg-white/10")}>
-                  <I className={cx("h-4 w-4", isActive && "text-black")} />
-                  {!collapsed && <span className="truncate">{l.label}</span>}
-                </NavLink>
-              );
-            })}
-          </nav>
-        </aside>
-
-        {/* Sidebar mobile */}
-        <MobileSidebar open={mobileOpen} onClose={()=>setMobileOpen(false)} nav={nav} pathname={location.pathname} />
-
-        {/* Conteúdo */}
-        <main className="flex-1 p-4 md:p-6">
-          <div className="mb-4 flex items-center gap-2 text-xs text-white/60">
-            {breadcrumb.map((b, i) => (
-              <span key={i} className="inline-flex items-center gap-2">
-                {i > 0 && <span className="opacity-50">/</span>}
-                <span className={cx(i === breadcrumb.length - 1 && "text-white")}>{b}</span>
-              </span>
-            ))}
-          </div>
-
-          <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-3 md:p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
-            <Outlet />
-          </div>
-
-          <footer className="pt-4 text-[11px] text-white/40">© {new Date().getFullYear()} Admin. Feito com ❤️.</footer>
-        </main>
+    <div className="grid min-h-screen place-items-center bg-[#040406] text-white">
+      <div className="flex items-center gap-2 text-sm text-white/70">
+        <Spinner /> A validar permissoes...
       </div>
-
-      {/* Overlays */}
-      <OnlineDrawer open={onlineOpen} onClose={() => setOnlineOpen(false)} navigateToPlayer={(id) => navigate(`/admin/players/${encodeURIComponent(id)}`)} />
-      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} navigate={navigate} />
     </div>
   );
 }
 
-/* Sidebar mobile isolada para reuso */
-function MobileSidebar({ open, onClose, nav, pathname }:{
-  open:boolean; onClose:()=>void; nav: Array<{to:string; label:string; icon:any; exact?:boolean}>; pathname:string;
-}) {
-  if (!open) return null;
-  return (
-    <>
-      <div className="fixed inset-0 z-40 bg-black/50 md:hidden" onClick={onClose} />
-      <aside className="fixed left-0 top-0 bottom-0 z-50 w-72 bg-[#0b0b0c] border-r border-white/10 p-3 md:hidden">
-        <div className="flex items-center justify-between h-12">
-          <div className="font-semibold">Menu</div>
-          <button className="p-2 rounded-lg bg-white/10 hover:bg-white/15" onClick={onClose}>
-            <Icon.ChevronLeft className="h-4 w-4" />
+return (
+  <div className="relative min-h-screen bg-[#040406] text-white">
+    <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top,_rgba(234,44,97,0.18),rgba(27,22,60,0.35),transparent_75%)]" />
+    <header className="sticky top-0 z-40 border-b border-white/10 bg-gradient-to-r from-black/95 via-black/75 to-black/90 backdrop-blur-xl">
+      <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8">
+        <div className="flex items-center gap-3">
+          <button
+            className="rounded-xl border border-white/15 bg-white/10 p-2 text-white/70 transition hover:text-white md:hidden"
+            onClick={() => setMobileOpen(true)}
+            aria-label="Abrir menu"
+          >
+            <Icon.menu className="h-5 w-5" />
+          </button>
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/20 bg-white/15 text-sm font-semibold tracking-[0.3em]">
+              FTW
+            </div>
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-wide">Control Center</p>
+              <p className="text-xs text-white/50">For The Win Admin</p>
+            </div>
+          </div>
+        </div>
+        {activeSectionMeta && (
+          <span
+            className={cx(
+              "hidden items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium text-white/80 sm:inline-flex",
+              activeAccent.border,
+              activeAccent.glow
+            )}
+          >
+            {activeSectionMeta.label}
+          </span>
+        )}
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setPaletteOpen(true)}
+            className="hidden items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-2 text-xs text-white/70 transition hover:text-white md:flex"
+          >
+            <Icon.search className="h-4 w-4" />
+            <span>Ctrl + K</span>
+          </button>
+          <button
+            onClick={() => setOnlineOpen(true)}
+            className="hidden items-center gap-2 rounded-full border border-emerald-400/30 bg-emerald-400/10 px-3 py-2 text-xs text-emerald-200 transition hover:border-emerald-400/50 hover:bg-emerald-400/20 sm:flex"
+          >
+            <Icon.users className="h-4 w-4" />
+            <span>{countLoading ? "..." : `${onlineCount ?? 0}`} online</span>
+          </button>
+          <AvatarMenu email={email} onLogout={onLogout} />
+        </div>
+      </div>
+    </header>
+
+    <div className="flex">
+      <aside
+        className={cx(
+          "hidden md:flex flex-col border-r border-white/10 bg-gradient-to-b from-white/[0.08] via-white/[0.02] to-transparent backdrop-blur-xl px-4 py-5 transition-all duration-300",
+          collapsed ? "w-24 items-center" : "w-80"
+        )}
+      >
+        <div className={cx("flex items-center justify-between", collapsed ? "w-full" : "")}> 
+          {!collapsed && (
+            <div className="flex flex-col gap-1">
+              <span className="text-xs uppercase tracking-[0.35em] text-white/40">Navigation</span>
+              <span className="text-sm font-semibold text-white/80">For The Win Layers</span>
+            </div>
+          )}
+          <button
+            className="rounded-xl border border-white/15 bg-white/10 p-2 text-white/70 transition hover:text-white"
+            onClick={() => setCollapsed((value) => !value)}
+            aria-label="Alternar navegacao"
+          >
+            {collapsed ? <Icon.chevronRight className="h-4 w-4" /> : <Icon.chevronLeft className="h-4 w-4" />}
           </button>
         </div>
-        <nav className="mt-2 flex flex-col gap-1">
-          {nav.map((l) => {
-            const isActive = l.exact ? pathname === "/admin" : pathname.startsWith(l.to);
-            const I = l.icon;
+
+        <div className="mt-6 flex-1 overflow-y-auto">
+          {groupedNav.map((section) => {
+            const accent = SECTION_ACCENT[section.id];
             return (
-              <NavLink key={l.to} to={l.to} end={!!l.exact} onClick={onClose}
-                className={cx("px-3 py-2 rounded-xl text-sm flex items-center gap-3 transition",
-                              isActive ? "bg-white text-black shadow-sm" : "text-white/80 hover:text-white hover:bg-white/10")}>
-                <I className={cx("h-4 w-4", isActive && "text-black")} />
-                <span className="truncate">{l.label}</span>
-              </NavLink>
+              <div key={section.id} className="mb-6">
+                {!collapsed && (
+                  <div
+                    className={cx(
+                      "mb-3 flex items-center justify-between rounded-2xl border px-3 py-2 text-xs font-semibold uppercase tracking-wide text-white/70",
+                      accent.border,
+                      accent.glow
+                    )}
+                  >
+                    <span>{section.label}</span>
+                    <span className="text-white/40">{section.items.length}</span>
+                  </div>
+                )}
+                <nav className={cx("flex flex-col gap-2", collapsed && "items-center")}>
+                  {section.items.map((item) => {
+                    const isActive = item.exact
+                      ? location.pathname === item.to
+                      : location.pathname === item.to || location.pathname.startsWith(`${item.to}/`);
+                    const accentStyles = SECTION_ACCENT[item.section];
+                    const ItemIcon = item.icon;
+                    return (
+                      <NavLink
+                        key={item.to}
+                        to={item.to}
+                        end={!!item.exact}
+                        title={item.label}
+                        className={cx(
+                          "group relative flex w-full items-center gap-3 rounded-2xl border px-3 py-2 text-sm transition",
+                          collapsed ? "justify-center" : "pl-3 pr-4",
+                          isActive
+                            ? `border-white/30 bg-gradient-to-r ${accentStyles.pill} text-black shadow-[0_18px_40px_rgba(18,18,40,0.45)]`
+                            : "border-transparent text-white/70 hover:border-white/15 hover:bg-white/5 hover:text-white"
+                        )}
+                      >
+                        <span
+                          className={cx(
+                            "flex h-9 w-9 items-center justify-center rounded-xl border bg-white/5 text-white",
+                            accentStyles.border,
+                            isActive ? "bg-white text-black" : ""
+                          )}
+                        >
+                          <ItemIcon className={cx("h-4 w-4", isActive ? "text-black" : "text-white/70")} />
+                        </span>
+                        {!collapsed && (
+                          <div className="flex min-w-0 flex-col text-left">
+                            <span className="text-sm font-semibold">{item.label}</span>
+                            <span className="text-xs text-white/45">{sectionLabelMap.get(item.section)}</span>
+                          </div>
+                        )}
+                        {!collapsed && isActive && (
+                          <span className="ml-auto flex items-center gap-1 text-xs font-medium text-black/70">
+                            Live
+                            <span className="h-2 w-2 rounded-full bg-black/60" />
+                          </span>
+                        )}
+                      </NavLink>
+                    );
+                  })}
+                </nav>
+              </div>
             );
           })}
-        </nav>
+        </div>
       </aside>
-    </>
-  );
+
+      <MobileSidebar open={mobileOpen} onClose={() => setMobileOpen(false)} groups={groupedNav} pathname={location.pathname} />
+
+      <main className="relative flex-1 overflow-y-auto">
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-64 bg-[radial-gradient(circle_at_top,_rgba(255,86,146,0.25),transparent_65%)] blur-3xl" />
+        <div className="relative mx-auto flex w-full max-w-7xl flex-col gap-8 px-4 py-8 sm:px-6 lg:px-8">
+          <div className="flex flex-wrap items-start justify-between gap-6">
+            <div className="flex min-w-[200px] flex-col gap-3">
+              <div className="flex items-center gap-2 text-xs uppercase tracking-wide text-white/40">
+                {breadcrumb.map((crumb, index) => (
+                  <span key={`${crumb}-${index}`} className="flex items-center gap-2">
+                    {index > 0 && <span className="opacity-40">/</span>}
+                    <span className={cx(index === breadcrumb.length - 1 && "text-white/80")}>{crumb}</span>
+                  </span>
+                ))}
+              </div>
+              <h1 className="text-3xl font-semibold text-white md:text-4xl">
+                {activeNavItem?.label ?? "Painel"}
+              </h1>
+              {activeSectionMeta?.description && (
+                <p className="max-w-xl text-sm text-white/55">{activeSectionMeta.description}</p>
+              )}
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                onClick={() => setPaletteOpen(true)}
+                className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-4 py-2 text-sm text-white/80 transition hover:bg-white/10"
+              >
+                <Icon.search className="h-4 w-4" />
+                <span>Pesquisar</span>
+              </button>
+              <button
+                onClick={() => setOnlineOpen(true)}
+                className="inline-flex items-center gap-2 rounded-full border border-emerald-400/30 bg-emerald-400/10 px-4 py-2 text-sm text-emerald-200 transition hover:bg-emerald-400/20"
+                title="Ver jogadores online"
+              >
+                <Icon.users className="h-4 w-4" />
+                <span>{countLoading ? "..." : `${onlineCount ?? 0}`} online</span>
+              </button>
+            </div>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            {dashboardStats.map((stat) => {
+              const StatIcon = stat.icon;
+              return (
+                <div
+                  key={stat.label}
+                  className="relative overflow-hidden rounded-3xl border border-white/10 bg-white/[0.02] p-5 shadow-[0_18px_45px_rgba(6,5,20,0.55)] backdrop-blur"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-xs uppercase tracking-wide text-white/45">{stat.label}</p>
+                      <p className="mt-2 text-2xl font-semibold text-white">{stat.value}</p>
+                      <p className="mt-1 text-xs text-white/50">{stat.note}</p>
+                    </div>
+                    <div className="rounded-2xl bg-white/10 p-3 text-white">
+                      <StatIcon className="h-5 w-5" />
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {quickActions.map((action) => {
+              const ActionIcon = action.icon;
+              return (
+                <button
+                  key={action.label}
+                  onClick={action.onTrigger}
+                  className="group flex items-center justify-between rounded-3xl border border-white/10 bg-white/[0.03] px-4 py-3 text-left shadow-[0_12px_30px_rgba(6,5,20,0.35)] transition hover:border-white/20 hover:bg-white/[0.08]"
+                >
+                  <div>
+                    <p className="text-sm font-semibold text-white">{action.label}</p>
+                    {action.description && <p className="text-xs text-white/55">{action.description}</p>}
+                  </div>
+                  <span className="rounded-2xl border border-white/15 bg-white/10 p-3 text-white transition group-hover:bg-white/20">
+                    <ActionIcon className="h-4 w-4" />
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="rounded-[28px] border border-white/10 bg-white/[0.02] shadow-[0_20px_60px_rgba(10,8,25,0.45)] backdrop-blur">
+            <div className="rounded-[28px] border border-white/[0.08] bg-black/30 p-4 sm:p-6">
+              <Outlet />
+            </div>
+          </div>
+
+          <footer className="pb-6 text-xs text-white/45">
+            (c) {new Date().getFullYear()} FTW Roleplay - Painel administrativo
+          </footer>
+        </div>
+      </main>
+    </div>
+
+    <OnlineDrawer open={onlineOpen} onClose={() => setOnlineOpen(false)} navigateToPlayer={(id) => navigate(`/admin/users/profiles/${encodeURIComponent(id)}`)} />
+    <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} navigate={navigate} pages={navItems} />
+  </div>
+);
 }
