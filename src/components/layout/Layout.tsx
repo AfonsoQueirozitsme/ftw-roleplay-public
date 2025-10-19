@@ -3,6 +3,7 @@ import { Outlet } from "react-router-dom";
 import Background from "./Background";
 import Navbar from "./Navbar";
 import Footer from "./Footer";
+import TicketSidebar from '@/components/admin/TicketSidebar';
 
 
 const Layout: React.FC = () => {
@@ -14,6 +15,7 @@ return (
 <Outlet />
 </main>
 <Footer />
+<TicketSidebar />
 </div>
 );
 };

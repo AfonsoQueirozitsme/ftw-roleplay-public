@@ -1,6 +1,7 @@
 // file: src/App.tsx
 import React from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
+import { Toaster } from '@/components/ui/toaster';
 
 /* — Público — */
 import Layout from "@/components/layout/Layout";
@@ -46,7 +47,7 @@ import DevLeaders from "@/pages/admin/DevLeaders";
 /* — Redirect externo — */
 function ExternalShopRedirect() {
   React.useEffect(() => {
-    window.location.href = "https://shop.roleplay.ftw.pt";
+    window.location.href = "https://shopftwrp.ftw.pt/";
   }, []);
   return <p style={{ textAlign: "center", marginTop: "2rem" }}>A redirecionar para a loja...</p>;
 }
@@ -54,6 +55,7 @@ function ExternalShopRedirect() {
 export default function App() {
   return (
     <Routes>
+      <Toaster />
       {/* Público */}
       <Route element={<Layout />}>
         <Route path="/" element={<Home />} />
