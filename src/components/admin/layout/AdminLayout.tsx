@@ -130,14 +130,26 @@ const getInitials = (value?: string | null) =>
 
 type Perms = string[];
 
-const PERMS_CACHE_KEY = "admin:perms_cache_v1";
+const PERMS_CACHE_KEY = "admin:perms_cache_v2";
 const PERMS_TTL_MS = 48 * 60 * 60 * 1000;
 
 type PermsCache = { user_id: string; perms: string[]; cached_at: number };
 
 const readPermsCache = (): PermsCache | null => {
   try {
-    return JSON.parse(localStorage.getItem(PERMS_CACHE_KEY) || "null");
+    const raw = localStorage.getItem(PERMS_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (
+      !parsed ||
+      typeof parsed !== "object" ||
+      typeof parsed.user_id !== "string" ||
+      !Array.isArray(parsed.perms) ||
+      typeof parsed.cached_at !== "number"
+    ) {
+      return null;
+    }
+    return parsed as PermsCache;
   } catch (error) {
     console.error("Failed to read perms cache", error);
     return null;
