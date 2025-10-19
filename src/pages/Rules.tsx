@@ -1,7 +1,14 @@
-// src/pages/Rules.tsx
+﻿// src/pages/Rules.tsx
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
+
+type RuleItem = {
+  id: string;
+  title: string;
+  description?: string;
+  order?: number | null;
+};
 
 type RuleSection = {
   id: string;
@@ -10,163 +17,67 @@ type RuleSection = {
   color: string;
   gradient: string;
   iconPath: string;
-  rules: string[];
+  rules: RuleItem[];
 };
 
 type SectionResult = RuleSection & {
-  filteredRules: string[];
+  filteredRules: RuleItem[];
   matchesTitle: boolean;
 };
 
-const ruleSections: RuleSection[] = [
+const buildRuleItems = (
+  sectionId: string,
+  entries: Array<{ title: string; description?: string }>
+): RuleItem[] =>
+  entries.map((entry, index) => ({
+    id: `${sectionId}-${index}`,
+    title: entry.title,
+    description: entry.description,
+    order: index,
+  }));
+
+const fallbackSections: RuleSection[] = [
   {
-    id: "general",
-    title: "General Rules",
-    subtitle: "Fundamentos de convivência para todos os jogadores",
+    id: "1",
+    title: "Geral",
+    subtitle: "Regras gerais do servidor",
     color: "text-red-500",
     gradient: "from-red-500 to-red-400",
     iconPath: "M12 2l7 3v6c0 5.25-3.438 9.938-7 11-3.562-1.062-7-5.75-7-11V5l7-3z",
-    rules: [
-      "Respeita todos os jogadores e staff em qualquer momento.",
-      "Sem assédio, discriminação ou discurso de ódio.",
-      "Usa linguagem adequada em todas as comunicações.",
-      "Segue as instruções da staff sem discussões no momento.",
-      "Reporta violações pelos canais próprios (ticket Discord ou in-game).",
-    ],
+    rules: buildRuleItems("1", [
+      { title: "Respeito", description: "Respeite todos os jogadores." },
+      { title: "Sem cheats", description: "\u00C9 proibido uso de cheats ou exploits." },
+    ]),
   },
   {
-    id: "roleplay",
-    title: "Roleplay Rules",
-    subtitle: "Mantém a imersão e o bom senso em todas as interações",
-    color: "text-red-400",
-    gradient: "from-rose-500 to-red-400",
+    id: "2",
+    title: "Pol\u00EDcia",
+    subtitle: "Regras espec\u00EDficas para policiais",
+    color: "text-sky-400",
+    gradient: "from-sky-500 to-blue-500",
     iconPath:
-      "M16 11c1.657 0 3-1.79 3-4s-1.343-4-3-4-3 1.79-3 4 1.343 4 3 4zm-8 0c1.657 0 3-1.79 3-4S9.657 3 8 3 5 4.79 5 7s1.343 4 3 4zm0 2c-2.673 0-8 1.337-8 4v2h10v-2c0-2.663-5.327-4-8-4zm8 0c-.486 0-1.036.034-1.624.094 1.942 1.06 3.624 2.725 3.624 4.906v2H24v-2c0-2.663-5.327-4-8-4z",
-    rules: [
-      "Mantém-te em personagem durante os cenários de roleplay (IC > OOC).",
-      "Sem metagaming (usar informação OOC em IC).",
-      "A personagem deve agir com comportamentos e limitações realistas.",
-      "Sem powergaming (forçar ações noutros jogadores sem permitir resposta).",
-      "Respeita e protege os cenários de roleplay dos outros, mesmo que não participes.",
-    ],
+      "M4 4h16a2 2 0 0 1 2 2v4.5a2 2 0 0 1-1.106 1.788l-8 4a2 2 0 0 1-1.788 0l-8-4A2 2 0 0 1 2 10.5V6a2 2 0 0 1 2-2zm0 8.618V18a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-5.382l-7.106 3.553a4 4 0 0 1-3.788 0z",
+    rules: buildRuleItems("2", [
+      { title: "Uso de armas", description: "Policiais s\u00F3 podem usar armas em servi\u00E7o." },
+    ]),
   },
   {
-    id: "combat",
-    title: "Combat Rules",
-    subtitle: "Combate limpo, justo e com contexto",
-    color: "text-yellow-500",
-    gradient: "from-yellow-400 to-amber-500",
+    id: "3",
+    title: "Criminosos",
+    subtitle: "Regras para atividades ilegais",
+    color: "text-amber-400",
+    gradient: "from-amber-500 to-orange-500",
     iconPath: "M1 21h22L12 2 1 21zm12-3h-2v2h2v-2zm0-6h-2v5h2v-5z",
-    rules: [
-      "Sem combat logging durante qualquer combate ativo.",
-      "Jogo limpo — nada de explorar bugs, vantagens injustas ou mecânicas não intencionais.",
-      "Honra rendições, tentativas de negociação e roleplay social durante conflitos.",
-      "Sem spawn camping, griefing ou repetição de ataques sem justificação RP.",
-      "Usa armas adequadas ao nível e acesso da tua personagem.",
-    ],
-  },
-  {
-    id: "prohibited",
-    title: "Prohibited Actions",
-    subtitle: "Atividades proibidas em qualquer circunstância",
-    color: "text-red-600",
-    gradient: "from-red-600 to-rose-700",
-    iconPath: "M12 2C6.486 2 2 6.486 2 12c0 2.02.6 3.896 1.627 5.46L17.46 3.627A9.94 9.94 0 0012 2zm8.373 4.54L6.54 20.373A9.94 9.94 0 0012 22c5.514 0 10-4.486 10-10 0-2.02-.6-3.896-1.627-5.46z",
-    rules: [
-      "Proibido cheatar, hackear ou usar software/mods não autorizados.",
-      "Sem publicidade a outros servidores, serviços ou comunidades.",
-      "Proibido doxxing, ameaças reais ou partilha de dados pessoais.",
-      "Sem spam em chat, voz ou uso abusivo de efeitos sonoros.",
-      "Proibida a personificação de staff, outros jogadores ou figuras oficiais.",
-    ],
+    rules: buildRuleItems("3", [
+      { title: "Assaltos", description: "Assaltos devem ser planejados e realistas." },
+    ]),
   },
 ];
-const ruleSectionsFallback: RuleSection[] = [
-  {
-    id: "general",
-    title: "General Rules",
-    subtitle: "Fundamentos de convivência para todos os jogadores",
-    color: "text-red-500",
-    gradient: "from-red-500 to-red-400",
-    iconPath: "M12 2l7 3v6c0 5.25-3.438 9.938-7 11-3.562-1.062-7-5.75-7-11V5l7-3z",
-    rules: [
-      "Respeita todos os jogadores e staff em qualquer momento.",
-      "Sem assédio, discriminação ou discurso de ódio.",
-      "Usa linguagem adequada em todas as comunicações.",
-      "Segue as instruções da staff sem discussões no momento.",
-      "Reporta violações pelos canais próprios (ticket Discord ou in-game).",
-    ],
-  },
-  {
-    id: "roleplay",
-    title: "Roleplay Rules",
-    subtitle: "Mantém a imersão e o bom senso em todas as interações",
-    color: "text-red-400",
-    gradient: "from-rose-500 to-red-400",
-    iconPath:
-      "M16 11c1.657 0 3-1.79 3-4s-1.343-4-3-4-3 1.79-3 4 1.343 4 3 4zm-8 0c1.657 0 3-1.79 3-4S9.657 3 8 3 5 4.79 5 7s1.343 4 3 4zm0 2c-2.673 0-8 1.337-8 4v2h10v-2c0-2.663-5.327-4-8-4zm8 0c-.486 0-1.036.034-1.624.094 1.942 1.06 3.624 2.725 3.624 4.906v2H24v-2c0-2.663-5.327-4-8-4z",
-    rules: [
-      "Mantém-te em personagem durante os cenários de roleplay (IC > OOC).",
-      "Sem metagaming (usar informação OOC em IC).",
-      "A personagem deve agir com comportamentos e limitações realistas.",
-      "Sem powergaming (forçar ações noutros jogadores sem permitir resposta).",
-      "Respeita e protege os cenários de roleplay dos outros, mesmo que não participes.",
-    ],
-  },
-  {
-    id: "combat",
-    title: "Combat Rules",
-    subtitle: "Combate limpo, justo e com contexto",
-    color: "text-yellow-500",
-    gradient: "from-yellow-400 to-amber-500",
-    iconPath: "M1 21h22L12 2 1 21zm12-3h-2v2h2v-2zm0-6h-2v5h2v-5z",
-    rules: [
-      "Sem combat logging durante qualquer combate ativo.",
-      "Jogo limpo — nada de explorar bugs, vantagens injustas ou mecânicas não intencionais.",
-      "Honra rendições, tentativas de negociação e roleplay social durante conflitos.",
-      "Sem spawn camping, griefing ou repetição de ataques sem justificação RP.",
-      "Usa armas adequadas ao nível e acesso da tua personagem.",
-    ],
-  },
-  {
-    id: "prohibited",
-    title: "Prohibited Actions",
-    subtitle: "Atividades proibidas em qualquer circunstância",
-    color: "text-red-600",
-    gradient: "from-red-600 to-rose-700",
-    iconPath: "M12 2C6.486 2 2 6.486 2 12c0 2.02.6 3.896 1.627 5.46L17.46 3.627A9.94 9.94 0 0012 2zm8.373 4.54L6.54 20.373A9.94 9.94 0 0012 22c5.514 0 10-4.486 10-10 0-2.02-.6-3.896-1.627-5.46z",
-    rules: [
-      "Proibido cheatar, hackear ou usar software/mods não autorizados.",
-      "Sem publicidade a outros servidores, serviços ou comunidades.",
-      "Proibido doxxing, ameaças reais ou partilha de dados pessoais.",
-      "Sem spam em chat, voz ou uso abusivo de efeitos sonoros.",
-      "Proibida a personificação de staff, outros jogadores ou figuras oficiais.",
-    ],
-  },
-];
-
-// Database-driven state
-type DbRuleRow = {
-  id: string;
-  section_id: string;
-  content: string;
-  position: number | null;
-};
-
-type DbSectionRow = {
-  id: string;
-  title: string;
-  subtitle?: string | null;
-  color?: string | null;
-  gradient?: string | null;
-  icon_path?: string | null;
-  position?: number | null;
-};
 
 const enforcementStages = [
-  { label: "1.ª Ocorrência", detail: "Aviso", color: "text-yellow-500" },
-  { label: "2.ª Ocorrência", detail: "Ban 24h", color: "text-orange-500" },
-  { label: "3.ª Ocorrência", detail: "Ban Permanente", color: "text-red-600" },
+  { label: "1.┬¬ Ocorr├¬ncia", detail: "Aviso", color: "text-yellow-500" },
+  { label: "2.┬¬ Ocorr├¬ncia", detail: "Ban 24h", color: "text-orange-500" },
+  { label: "3.┬¬ Ocorr├¬ncia", detail: "Ban Permanente", color: "text-red-600" },
 ];
 
 const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -179,13 +90,13 @@ const Icon = ({ path }: { path: string }) => (
 
 const Rules: React.FC = () => {
   const [query, setQuery] = useState("");
-  const [activeSection, setActiveSection] = useState<string>(ruleSections[0].id);
+  const [activeSection, setActiveSection] = useState<string>(fallbackSections[0]?.id ?? "");
   const [ruleSectionsDb, setRuleSectionsDb] = useState<RuleSection[] | null>(null);
   const [loading, setLoading] = useState(false);
   const sectionRefs = useRef<Record<string, HTMLElement | null>>({});
   const trimmedQuery = query.trim().toLowerCase();
 
-  const sourceSections = ruleSectionsDb ?? ruleSectionsFallback;
+  const sourceSections = ruleSectionsDb ?? fallbackSections;
 
   const results = useMemo<SectionResult[]>(() => {
     return sourceSections
@@ -194,7 +105,10 @@ const Rules: React.FC = () => {
           return { ...section, filteredRules: section.rules, matchesTitle: false };
         }
         const matchesTitle = section.title.toLowerCase().includes(trimmedQuery);
-        const matchedRules = section.rules.filter((rule) => rule.toLowerCase().includes(trimmedQuery));
+        const matchedRules = section.rules.filter((rule) => {
+          const haystack = `${rule.title} ${rule.description ?? ""}`.toLowerCase();
+          return haystack.includes(trimmedQuery);
+        });
         if (!matchesTitle && matchedRules.length === 0) return null;
         const filteredRules = matchesTitle && matchedRules.length === 0 ? section.rules : matchedRules;
         return { ...section, filteredRules, matchesTitle };
@@ -218,42 +132,69 @@ const Rules: React.FC = () => {
     (async () => {
       setLoading(true);
       try {
-        const { data: sectionsData, error: sectionsErr } = await supabase
-          .from("rules_sections")
-          .select("id,title,subtitle,color,gradient,icon_path,position")
-          .order("position", { ascending: true });
+        const { data: categoriesData, error: categoriesErr } = await supabase
+          .from("rule_categories")
+          .select("id,name,description")
+          .order("id", { ascending: true });
 
-        if (sectionsErr) throw sectionsErr;
+        if (categoriesErr) throw categoriesErr;
 
         const { data: rulesData, error: rulesErr } = await supabase
           .from("rules")
-          .select("id,section_id,content,position")
-          .order("position", { ascending: true });
+          .select("id,category_id,title,description,order,active")
+          .order("order", { ascending: true })
+          .order("id", { ascending: true });
 
         if (rulesErr) throw rulesErr;
 
         if (!mounted) return;
 
-        if (sectionsData && rulesData) {
-          const sectionsMap: Record<string, RuleSection> = {};
-          sectionsData.forEach((s) => {
-            sectionsMap[s.id] = {
-              id: s.id,
-              title: s.title,
-              subtitle: s.subtitle ?? undefined,
-              color: s.color ?? "text-white",
-              gradient: s.gradient ?? "from-black to-black",
-              iconPath: s.icon_path ?? "M0 0h24v24H0z",
+        if (categoriesData) {
+          const palette = fallbackSections.map(({ color, gradient, iconPath }) => ({
+            color,
+            gradient,
+            iconPath,
+          }));
+
+          const sectionsMap = new Map<number, RuleSection>();
+
+          categoriesData.forEach((category, index) => {
+            const style = palette[index % palette.length] ?? palette[0];
+            sectionsMap.set(category.id, {
+              id: String(category.id),
+              title: category.name,
+              subtitle: category.description ?? undefined,
+              color: style?.color ?? "text-red-500",
+              gradient: style?.gradient ?? "from-red-500 to-red-400",
+              iconPath: style?.iconPath ?? "M12 2l7 3v6c0 5.25-3.438 9.938-7 11-3.562-1.062-7-5.75-7-11V5l7-3z",
               rules: [],
-            };
+            });
           });
 
-          rulesData.forEach((r) => {
-            const sec = sectionsMap[r.section_id];
-            if (sec) sec.rules.push(r.content);
+          rulesData?.forEach((rule) => {
+            if (rule.active === false) return;
+            const target = sectionsMap.get(rule.category_id);
+            if (!target) return;
+            target.rules.push({
+              id: String(rule.id),
+              title: rule.title,
+              description: rule.description ?? undefined,
+              order: rule.order ?? null,
+            });
           });
 
-          const final = Object.values(sectionsMap).sort((a, b) => (a.id > b.id ? 1 : -1));
+          const final = Array.from(sectionsMap.values())
+            .map((section) => ({
+              ...section,
+              rules: [...section.rules].sort((a, b) => {
+                const orderA = a.order ?? 0;
+                const orderB = b.order ?? 0;
+                if (orderA !== orderB) return orderA - orderB;
+                return a.title.localeCompare(b.title);
+              }),
+            }))
+            .sort((a, b) => Number(a.id) - Number(b.id));
+
           setRuleSectionsDb(final);
         }
       } catch (err) {
@@ -327,8 +268,8 @@ const Rules: React.FC = () => {
           </h1>
           <p className="mt-6 text-lg md:text-xl text-white/70">
             Ao jogar nos servidores <span className="text-red-400 font-semibold">FTW Roleplay</span>,
-            aceitas cumprir estas regras. Violações podem resultar em avisos, expulsões ou banimentos
-            permanentes. Usa o índice e a pesquisa para chegar rapidamente ao ponto que precisas.
+            aceitas cumprir estas regras. Viola├º├Áes podem resultar em avisos, expuls├Áes ou banimentos
+            permanentes. Usa o ├¡ndice e a pesquisa para chegar rapidamente ao ponto que precisas.
           </p>
         </header>
 
@@ -336,12 +277,15 @@ const Rules: React.FC = () => {
           <aside className="hidden lg:block">
             <div className="sticky top-28 space-y-6 border border-white/10 bg-white/5 p-6 backdrop-blur-xl rounded-none">
               <div>
-                <p className="text-sm font-semibold uppercase tracking-wide text-white/50">Índice</p>
+                <p className="text-sm font-semibold uppercase tracking-wide text-white/50">├ìndice</p>
                 <p className="mt-2 text-sm text-white/60">
-                  Fica sempre visível – usa para navegar pelos blocos de regras.
+                  Fica sempre vis├¡vel ÔÇô usa para navegar pelos blocos de regras.
                 </p>
               </div>
-              <nav aria-label="Índice de regras">
+              {loading && (
+                <p className="mt-2 text-xs text-white/55">A sincronizar com a base de dados...</p>
+              )}
+              <nav aria-label="├ìndice de regras">
                 <ul className="space-y-2 text-sm">
                   {results.map((section) => {
                     const isActive = section.id === activeSection;
@@ -371,8 +315,8 @@ const Rules: React.FC = () => {
               <div className="border border-red-500/30 bg-red-500/5 p-4 text-sm text-white/70 rounded-none">
                 <p className="font-semibold text-white">Nova!</p>
                 <p>
-                  Consulta também as <Link to="/punishments" className="text-red-400 underline">punições aplicáveis</Link>{" "}
-                  para perceber o que acontece quando uma regra é quebrada.
+                  Consulta tamb├®m as <Link to="/punishments" className="text-red-400 underline">puni├º├Áes aplic├íveis</Link>{" "}
+                  para perceber o que acontece quando uma regra ├® quebrada.
                 </p>
               </div>
             </div>
@@ -381,7 +325,7 @@ const Rules: React.FC = () => {
           <div className="space-y-10">
             <div className="lg:hidden">
               <div className="border border-white/10 bg-white/5 p-6 backdrop-blur-xl rounded-none">
-                <p className="text-sm font-semibold uppercase tracking-wide text-white/50">Índice</p>
+                <p className="text-sm font-semibold uppercase tracking-wide text-white/50">├ìndice</p>
                 <div className="mt-4 flex gap-3 overflow-x-auto">
                   {results.map((section) => {
                     const isActive = section.id === activeSection;
@@ -448,7 +392,7 @@ const Rules: React.FC = () => {
                 <div className="mt-4 border border-white/10 bg-white/5 p-6 text-sm text-white/70 rounded-none">
                   <p className="font-semibold text-white">Sem resultados</p>
                   <p className="mt-2">
-                    Não encontrámos regras para <span className="text-red-400">"{query}"</span>. Ajusta os termos ou consulta a
+                    N├úo encontr├ímos regras para <span className="text-red-400">"{query}"</span>. Ajusta os termos ou consulta a
                     lista completa removendo a pesquisa.
                   </p>
                 </div>
@@ -489,10 +433,17 @@ const Rules: React.FC = () => {
                     )}
                   </header>
                   <ul className="space-y-5">
-                    {section.filteredRules.map((rule, index) => (
-                      <li key={`${section.id}-${index}`} className="flex items-start gap-4">
-                        <span className="mt-1.5 h-2.5 w-2.5 flex-shrink-0 bg-gradient-to-br from-red-500 to-red-400 shadow-[0_0_0_4px_rgba(229,62,48,0.15)]" />
-                        <span className="leading-relaxed text-white/90">{highlightText(rule)}</span>
+                    {section.filteredRules.map((rule) => (
+                      <li key={rule.id} className="flex items-start gap-4">
+                        <span
+                          className={`mt-1.5 h-2.5 w-2.5 flex-shrink-0 bg-gradient-to-br ${section.gradient} shadow-[0_0_0_4px_rgba(229,62,48,0.15)]`}
+                        />
+                        <div className="leading-relaxed text-white/90">
+                          <p className="font-semibold text-white">{highlightText(rule.title)}</p>
+                          {rule.description && (
+                            <p className="mt-1 text-sm text-white/70">{highlightText(rule.description)}</p>
+                          )}
+                        </div>
                       </li>
                     ))}
                   </ul>
@@ -501,10 +452,10 @@ const Rules: React.FC = () => {
 
             <section className="border border-white/10 bg-gradient-to-br from-black/40 via-black/20 to-red-500/10 p-8 shadow-[0_18px_50px_rgba(0,0,0,0.45)] backdrop-blur-xl rounded-none">
               <header className="mb-6">
-                <h3 className="text-2xl font-bold text-red-500">Política de Aplicação</h3>
+                <h3 className="text-2xl font-bold text-red-500">Pol├¡tica de Aplica├º├úo</h3>
                 <p className="mt-3 text-white/70">
-                  Violações são tratadas com seriedade. Infracções leves podem levar apenas a aviso, mas casos graves podem
-                  resultar em ação imediata. Reincidência implica sanções progressivas que escalam rapidamente.
+                  Viola├º├Áes s├úo tratadas com seriedade. Infrac├º├Áes leves podem levar apenas a aviso, mas casos graves podem
+                  resultar em a├º├úo imediata. Reincid├¬ncia implica san├º├Áes progressivas que escalam rapidamente.
                 </p>
               </header>
               <div className="grid gap-4 md:grid-cols-3">
@@ -519,12 +470,12 @@ const Rules: React.FC = () => {
                 ))}
               </div>
               <footer className="mt-6 flex flex-col gap-3 text-sm text-white/60 md:flex-row md:items-center md:justify-between">
-                <p>Em caso de dúvida ou para reportar situações, abre ticket no Discord oficial.</p>
+                <p>Em caso de d├║vida ou para reportar situa├º├Áes, abre ticket no Discord oficial.</p>
                 <Link
                   to="/punishments"
                   className="inline-flex items-center gap-2 border border-red-500/40 bg-red-500/10 px-4 py-2 text-red-300 transition hover:border-red-500 hover:bg-red-500/20 rounded-none"
                 >
-                  <span>Ver tabela de punições</span>
+                  <span>Ver tabela de puni├º├Áes</span>
                   <svg className="h-4 w-4" viewBox="0 0 16 16" fill="currentColor" aria-hidden>
                     <path d="M9.5 3a.5.5 0 000 1h2.793L5.146 11.146a.5.5 0 10.707.707L13 4.707V7.5a.5.5 0 001 0v-4a.5.5 0 00-.5-.5h-4z" />
                   </svg>

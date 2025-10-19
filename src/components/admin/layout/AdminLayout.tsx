@@ -216,7 +216,6 @@ type AdminNavSectionId =
   | "content"
   | "operations"
   | "dev"
-  | "governance"
   | "system";
 
 type AdminNavItem = {
@@ -241,7 +240,7 @@ const NAV_SECTIONS: Array<{ id: AdminNavSectionId; label: string; description?: 
   { id: "content", label: "Media", description: "Galeria e recursos partilhados" },
   { id: "operations", label: "Operacoes", description: "Monitorizacao e administracao" },
   { id: "dev", label: "Development", description: "Fluxo de trabalho da equipa" },
-  { id: "governance", label: "Governanca", description: "Permissoes e configuracoes" },
+  { id: "system", label: "Governanca", description: "Permissoes e configuracoes" },
 ];
 
 const SECTION_ACCENT: Record<AdminNavSectionId, { pill: string; glow: string; border: string }> = {
@@ -269,11 +268,6 @@ const SECTION_ACCENT: Record<AdminNavSectionId, { pill: string; glow: string; bo
     pill: "from-emerald-500/80 via-teal-500/80 to-blue-500/80",
     glow: "bg-emerald-500/15",
     border: "border-emerald-400/40",
-  },
-  governance: {
-    pill: "from-slate-500/80 via-slate-400/80 to-slate-300/80",
-    glow: "bg-slate-500/15",
-    border: "border-slate-400/40",
   },
   system: {
     pill: "from-gray-500/80 via-gray-400/80 to-gray-300/80",

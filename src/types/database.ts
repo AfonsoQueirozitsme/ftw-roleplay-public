@@ -153,57 +153,45 @@ export interface Database {
       }
       rules: {
         Row: {
-          id: string
-          section_id: string | null
-          content: string
-          position: number | null
-          created_at: string | null
+          id: number
+          category_id: number
+          title: string
+          description: string | null
+          order: number | null
+          active: boolean | null
         }
         Insert: {
-          id?: string
-          section_id?: string | null
-          content: string
-          position?: number | null
-          created_at?: string | null
+          id?: number
+          category_id: number
+          title: string
+          description?: string | null
+          order?: number | null
+          active?: boolean | null
         }
         Update: {
-          id?: string
-          section_id?: string | null
-          content?: string
-          position?: number | null
-          created_at?: string | null
+          id?: number
+          category_id?: number
+          title?: string
+          description?: string | null
+          order?: number | null
+          active?: boolean | null
         }
       }
-      rules_sections: {
+      rule_categories: {
         Row: {
-          id: string
-          title: string
-          subtitle: string | null
-          color: string | null
-          gradient: string | null
-          icon_path: string | null
-          position: number | null
-          created_at: string | null
+          id: number
+          name: string
+          description: string | null
         }
         Insert: {
-          id?: string
-          title: string
-          subtitle?: string | null
-          color?: string | null
-          gradient?: string | null
-          icon_path?: string | null
-          position?: number | null
-          created_at?: string | null
+          id?: number
+          name: string
+          description?: string | null
         }
         Update: {
-          id?: string
-          title?: string
-          subtitle?: string | null
-          color?: string | null
-          gradient?: string | null
-          icon_path?: string | null
-          position?: number | null
-          created_at?: string | null
+          id?: number
+          name?: string
+          description?: string | null
         }
       }
       user_roles: {
