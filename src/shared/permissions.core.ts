@@ -1,16 +1,5 @@
-import { createClient } from '@supabase/supabase-js';
-import type { Database } from '@/types/database';
 import type { JoinedUserRole } from './permissions.types';
-
-// Initialize Supabase client
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
-if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-  throw new Error('Missing Supabase credentials (VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY)');
-}
-
-export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_ANON_KEY);
+import { supabase } from './supabase';
 
 // Cache configuration
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes

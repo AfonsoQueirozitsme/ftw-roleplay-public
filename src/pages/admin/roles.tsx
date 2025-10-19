@@ -1,7 +1,7 @@
 import React from 'react';
 import { useUser } from '@/hooks/useUser';
 import { supabase } from '@/lib/supabase';
-import type { Role, Permission } from '@/shared/permissions';
+import type { RoleWithPermissions as Role, Permission } from '@/shared/permissions';
 
 const RolesManagement: React.FC = () => {
   const { user } = useUser();
