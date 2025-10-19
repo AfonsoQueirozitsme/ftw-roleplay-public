@@ -157,19 +157,19 @@ const RolesManagement: React.FC = () => {
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 p-6 bg-zinc-900 min-h-screen text-white">
       <section>
-        <h2 className="text-2xl font-bold mb-4">Gestão de Roles e Permissões</h2>
+        <h2 className="text-2xl font-bold mb-4 text-white">Gestão de Roles e Permissões</h2>
         <p className="text-white/70 mb-6">Gere os roles e permissões do sistema.</p>
 
         <div className="grid grid-cols-2 gap-8">
           {/* Roles List */}
           <div className="space-y-4">
             <h3 className="text-xl font-semibold">Roles</h3>
-            <form onSubmit={handleCreateRole} className="space-y-4 border border-white/10 bg-black/40 p-4">
+            <form onSubmit={handleCreateRole} className="space-y-4 border border-white/10 bg-zinc-800/50 rounded-lg p-4">
               <div>
-                <label className="block text-sm font-medium mb-1">Nome</label>
-                <input type="text" name="name" required className="w-full bg-black/40 border border-white/10 p-2 text-white" />
+                <label className="block text-sm font-medium mb-1 text-white">Nome</label>
+                <input type="text" name="name" required className="w-full bg-zinc-900 border border-white/10 p-2 text-white rounded" />
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">Identificador</label>
@@ -182,15 +182,15 @@ const RolesManagement: React.FC = () => {
               <button type="submit" className="btn-primary w-full">Criar Role</button>
             </form>
 
-            <div className="border border-white/10 bg-black/40 p-4">
+            <div className="border border-white/10 bg-zinc-800/50 rounded-lg p-4">
               <ul className="space-y-2">
                 {roles.map(role => (
                   <li key={role.id} className="flex items-center justify-between">
                     <button
                       onClick={() => setSelectedRole(role)}
-                      className={`text-left p-2 w-full ${selectedRole?.id === role.id ? 'bg-white/10' : 'hover:bg-white/5'}`}
+                      className={`text-left p-2 w-full rounded ${selectedRole?.id === role.id ? 'bg-zinc-700' : 'hover:bg-zinc-700/50'}`}
                     >
-                      <span className="font-medium">{role.name}</span>
+                      <span className="font-medium text-white">{role.name}</span>
                       <span className="text-sm text-white/60 block">{role.identifier}</span>
                     </button>
                   </li>
@@ -202,10 +202,10 @@ const RolesManagement: React.FC = () => {
           {/* Permissions Management */}
           <div className="space-y-4">
             <h3 className="text-xl font-semibold">Permissões</h3>
-            <form onSubmit={handleCreatePermission} className="space-y-4 border border-white/10 bg-black/40 p-4">
+            <form onSubmit={handleCreatePermission} className="space-y-4 border border-white/10 bg-zinc-800/50 rounded-lg p-4">
               <div>
-                <label className="block text-sm font-medium mb-1">Nome</label>
-                <input type="text" name="name" required className="w-full bg-black/40 border border-white/10 p-2 text-white" />
+                <label className="block text-sm font-medium mb-1 text-white">Nome</label>
+                <input type="text" name="name" required className="w-full bg-zinc-900 border border-white/10 p-2 text-white rounded" />
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">Identificador</label>
@@ -219,8 +219,8 @@ const RolesManagement: React.FC = () => {
             </form>
 
             {selectedRole ? (
-              <div className="border border-white/10 bg-black/40 p-4">
-                <h4 className="font-medium mb-4">Permissões de {selectedRole.name}</h4>
+              <div className="border border-white/10 bg-zinc-800/50 rounded-lg p-4">
+                <h4 className="font-medium mb-4 text-white">Permissões de {selectedRole.name}</h4>
                 <ul className="space-y-2">
                   {permissions.map(permission => {
                     const isChecked = selectedRole.permissions?.some(p => p.id === permission.id);
@@ -230,7 +230,7 @@ const RolesManagement: React.FC = () => {
                           type="checkbox"
                           checked={isChecked}
                           onChange={(e) => handleUpdateRolePermissions(permission.id, e.target.checked)}
-                          className="w-4 h-4 bg-black/40 border-white/10"
+                          className="w-4 h-4 bg-zinc-900 border-white/10 rounded"
                         />
                         <div>
                           <span className="font-medium">{permission.name}</span>

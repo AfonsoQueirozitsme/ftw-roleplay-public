@@ -1,7 +1,6 @@
 // file: src/App.tsx
 import React from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
-import { Toaster } from '@/components/ui/toaster';
 
 /* — Público — */
 import Layout from "@/components/layout/Layout";
@@ -43,6 +42,7 @@ import Imagens from "@/pages/admin/imagens";
 import Resources from "@/pages/admin/resources";
 import DevWork from "@/pages/admin/DevWork";
 import DevLeaders from "@/pages/admin/DevLeaders";
+import RolesManagement from "@/pages/admin/roles";
 
 /* — Redirect externo — */
 function ExternalShopRedirect() {
@@ -55,9 +55,8 @@ function ExternalShopRedirect() {
 export default function App() {
   return (
     <Routes>
-      <Toaster />
       {/* Público */}
-      <Route element={<Layout />}>
+        <Route element={<Layout />}>
         <Route path="/" element={<Home />} />
 
         {/* Auth público */}
@@ -111,6 +110,7 @@ export default function App() {
         <Route path="devwork" element={<DevWork />} />
         <Route path="resources" element={<Resources />} />
         <Route path="devleaders" element={<DevLeaders />} />
+        <Route path="roles" element={<RolesManagement />} />
         <Route path="*" element={<NotFound />} />
       </Route>
     </Routes>
