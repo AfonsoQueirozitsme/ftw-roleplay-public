@@ -3,7 +3,7 @@ import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { listOnlinePlayers, listPlayers } from "@/lib/api/players";
 import { listVehiclesGlobal } from "@/lib/api/vehicles";
-import { getUserPermissions } from "@/shared/permissions";
+import { clearPermissionsCache, getUserPermissions } from "@/shared/permissions";
 
 const Icon = {
   menu: (p: any) => (
@@ -158,15 +158,34 @@ const clearPermsCache = () => {
   } catch (error) {
     console.error("Failed to clear perms cache", error);
   }
+  clearPermissionsCache();
 };
 
 const isStaffByPerms = (perms?: Perms | null) =>
-  !!perms?.some((p) => p.startsWith("ftw.") || p.startsWith("group.ftw_"));
+  !!perms?.some(
+    (value) =>
+      value.startsWith("ftw.") ||
+      value.startsWith("group.ftw_") ||
+      value === "admin.access" ||
+      value.startsWith("admin.") ||
+      value.startsWith("support.") ||
+      value.startsWith("supervise.") ||
+      value.startsWith("management.") ||
+      value.startsWith("roles.") ||
+      value.startsWith("users.") ||
+      value.startsWith("logs.") ||
+      value.startsWith("settings.") ||
+      value.startsWith("resources.") ||
+      value.startsWith("applications.") ||
+      value.startsWith("analytics.") ||
+      value.startsWith("vehicles.")
+  );
 
 const has = (perms: Perms | null | undefined, perm: string) => !!perms?.includes(perm);
 const hasAny = (perms: Perms | null | undefined, required: string[]) =>
   !!perms && required.some((perm) => perms.includes(perm));
-const isManagement = (perms?: Perms | null) => has(perms, "ftw.management.all");
+const isManagement = (perms?: Perms | null) =>
+  has(perms, "ftw.management.all") || has(perms, "management.all") || has(perms, "group.ftw_management");
 
 type AdminNavSectionId =
   | "overview"
@@ -281,12 +300,17 @@ function useStaffPerms() {
       try {
         const {
           data: { user },
+          error,
         } = await supabase.auth.getUser();
+
+        if (error) {
+          console.error("Failed to fetch auth user for perms", error);
+        }
 
         if (cancelled) return;
 
         if (!user) {
-          setPerms(null);
+          setPerms([]);
           clearPermsCache();
           return;
         }
@@ -299,21 +323,9 @@ function useStaffPerms() {
           return;
         }
 
-        const { data, error } = await supabase
-          .from("staff_perms")
-          .select("perms")
-          .eq("user_id", user.id)
-          .maybeSingle();
-
+        clearPermissionsCache(user.id);
+        const permissions = await getUserPermissions(user.id);
         if (cancelled) return;
-
-        if (error) {
-          console.error("Failed to load staff perms", error);
-          setPerms([]);
-          return;
-        }
-
-        const permissions = (data?.perms as string[]) ?? [];
         setPerms(permissions);
         writePermsCache({ user_id: user.id, perms: permissions, cached_at: Date.now() });
       } catch (error) {
