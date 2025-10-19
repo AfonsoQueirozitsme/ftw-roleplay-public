@@ -225,11 +225,11 @@ type QuickAction = {
 
 const NAV_SECTIONS: Array<{ id: AdminNavSectionId; label: string; description?: string }> = [
   { id: "overview", label: "Dashboard", description: "Resumo da operacao" },
-  { id: "people", label: "Utilizadores", description: "Perfis, papeis e integracoes" },
-  { id: "content", label: "Conteudo", description: "Noticias, eventos e regulamentos" },
-  { id: "operations", label: "Operacoes", description: "Suporte, reports e logs" },
-  { id: "dev", label: "Development", description: "Tasks e time tracking" },
-  { id: "governance", label: "Governanca", description: "Permissoes, chaves e configuracoes" },
+  { id: "people", label: "Pessoas", description: "Jogadores e candidaturas" },
+  { id: "content", label: "Media", description: "Galeria e recursos partilhados" },
+  { id: "operations", label: "Operacoes", description: "Monitorizacao e administracao" },
+  { id: "dev", label: "Development", description: "Fluxo de trabalho da equipa" },
+  { id: "governance", label: "Governanca", description: "Permissoes e configuracoes" },
 ];
 
 const SECTION_ACCENT: Record<AdminNavSectionId, { pill: string; glow: string; border: string }> = {
@@ -267,24 +267,14 @@ const SECTION_ACCENT: Record<AdminNavSectionId, { pill: string; glow: string; bo
 
 const ACL: Record<string, string[] | "staff"> = {
   "/admin": "staff",
-  "/admin/users": ["admin.access", "users.manage", "ftw.admin.basic"],
-  "/admin/users/profiles": ["admin.access", "users.manage"],
-  "/admin/roles": ["roles.manage", "ftw.admin.head", "ftw.management.all"],
-  "/admin/roles/permissions": ["roles.manage", "ftw.admin.head", "ftw.management.all"],
-  "/admin/api": ["settings.manage", "ftw.admin.head", "ftw.management.all"],
-  "/admin/api/files": ["resources.manage", "ftw.dev", "ftw.management.all"],
-  "/admin/news": ["settings.manage", "ftw.admin.basic", "ftw.management.all"],
-  "/admin/events": ["settings.manage", "ftw.admin.basic", "ftw.management.all"],
-  "/admin/rules": ["settings.manage", "ftw.admin.basic", "ftw.management.all"],
-  "/admin/punishments": ["settings.manage", "ftw.admin.basic", "ftw.management.all"],
-  "/admin/support": ["support.manage", "ftw.support.manage", "ftw.management.all"],
-  "/admin/support/reports": ["support.manage", "ftw.support.manage", "ftw.management.all"],
-  "/admin/development": ["ftw.dev", "ftw.dev.head", "ftw.management.all"],
-  "/admin/development/time": ["ftw.dev", "ftw.dev.head", "ftw.management.all"],
-  "/admin/applications": ["applications.manage", "ftw.admin.basic", "ftw.management.all"],
-  "/admin/discord": ["roles.manage", "ftw.admin.head", "ftw.management.all"],
-  "/admin/logs": ["logs.view", "ftw.admin.basic", "ftw.management.all"],
-  "/admin/settings": ["settings.manage", "ftw.admin.head", "ftw.management.all"],
+  "/admin/players": ["admin.access", "users.manage"],
+  "/admin/candidaturas": ["admin.access", "applications.manage"],
+  "/admin/txadmin": ["admin.access", "logs.view", "resources.manage"],
+  "/admin/logs": ["admin.access", "logs.view"],
+  "/admin/imagens": ["admin.access", "resources.manage"],
+  "/admin/resources": ["admin.access", "resources.manage"],
+  "/admin/devwork": ["admin.access", "roles.manage", "analytics.view"],
+  "/admin/devleaders": ["admin.access", "roles.manage", "analytics.view"],
 };
 
 const requiredForPath = (pathname: string): string[] | "staff" => {
@@ -959,22 +949,14 @@ useEffect(() => {
   const navItems = useMemo<AdminNavItem[]>(() => {
     const base: AdminNavItem[] = [
       { to: "/admin", label: "Dashboard", icon: Icon.dashboard, exact: true, need: "staff", section: "overview" },
-      { to: "/admin/users", label: "Utilizadores & Perfis", icon: Icon.users, need: ACL["/admin/users"] as string[], section: "people" },
-      { to: "/admin/roles", label: "Papeis & Permissoes", icon: Icon.shield, need: ACL["/admin/roles"] as string[], section: "people" },
-      { to: "/admin/api", label: "Chaves de API", icon: Icon.key, need: ACL["/admin/api"] as string[], section: "governance" },
-      { to: "/admin/api/files", label: "Ficheiros", icon: Icon.book, need: ACL["/admin/api/files"] as string[], section: "governance" },
-      { to: "/admin/news", label: "News", icon: Icon.news, need: ACL["/admin/news"] as string[], section: "content" },
-      { to: "/admin/events", label: "Events", icon: Icon.news, need: ACL["/admin/events"] as string[], section: "content" },
-      { to: "/admin/rules", label: "Regras", icon: Icon.book, need: ACL["/admin/rules"] as string[], section: "content" },
-      { to: "/admin/punishments", label: "Punicoes", icon: Icon.shield, need: ACL["/admin/punishments"] as string[], section: "content" },
-      { to: "/admin/support", label: "Tickets de Suporte", icon: Icon.support, need: ACL["/admin/support"] as string[], section: "operations" },
-      { to: "/admin/support/reports", label: "Reports & Incidentes", icon: Icon.support, need: ACL["/admin/support/reports"] as string[], section: "operations" },
-      { to: "/admin/development", label: "Tasks", icon: Icon.code, need: ACL["/admin/development"] as string[], section: "dev" },
-      { to: "/admin/development/time", label: "Time Tracking", icon: Icon.activity, need: ACL["/admin/development/time"] as string[], section: "dev" },
-      { to: "/admin/applications", label: "Candidaturas", icon: Icon.form, need: ACL["/admin/applications"] as string[], section: "operations" },
-      { to: "/admin/discord", label: "Integracao Discord", icon: Icon.discord, need: ACL["/admin/discord"] as string[], section: "people" },
-      { to: "/admin/logs", label: "Log de Eventos", icon: Icon.activity, need: ACL["/admin/logs"] as string[], section: "operations" },
-      { to: "/admin/settings", label: "Definicoes", icon: Icon.settings, need: ACL["/admin/settings"] as string[], section: "governance" },
+      { to: "/admin/players", label: "Gestao de Jogadores", icon: Icon.users, need: ACL["/admin/players"] as string[], section: "people" },
+      { to: "/admin/candidaturas", label: "Candidaturas", icon: Icon.form, need: ACL["/admin/candidaturas"] as string[], section: "people" },
+      { to: "/admin/txadmin", label: "txAdmin", icon: Icon.key, need: ACL["/admin/txadmin"] as string[], section: "operations" },
+      { to: "/admin/logs", label: "Logs", icon: Icon.activity, need: ACL["/admin/logs"] as string[], section: "operations" },
+      { to: "/admin/imagens", label: "Galeria", icon: Icon.news, need: ACL["/admin/imagens"] as string[], section: "content" },
+      { to: "/admin/resources", label: "Recursos", icon: Icon.book, need: ACL["/admin/resources"] as string[], section: "content" },
+      { to: "/admin/devwork", label: "Dev Work", icon: Icon.code, need: ACL["/admin/devwork"] as string[], section: "dev" },
+      { to: "/admin/devleaders", label: "Dev Leaders", icon: Icon.users, need: ACL["/admin/devleaders"] as string[], section: "dev" },
     ];
 
     if (isManagement(perms)) return base;
@@ -1069,16 +1051,16 @@ useEffect(() => {
       onTrigger: () => setPaletteOpen(true),
     },
     {
-      label: "Novo ticket",
-      description: "Suporte & Reports",
-      icon: Icon.support,
-      onTrigger: () => navigate("/admin/support?dialog=new"),
+      label: "Gestao de jogadores",
+      description: "Aceder rapidamente a /admin/players",
+      icon: Icon.users,
+      onTrigger: () => navigate("/admin/players"),
     },
     {
-      label: "Publicar noticia",
-      description: "News & Events",
-      icon: Icon.news,
-      onTrigger: () => navigate("/admin/news?dialog=new"),
+      label: "Abrir Dev Work",
+      description: "Ver tarefas da equipa",
+      icon: Icon.code,
+      onTrigger: () => navigate("/admin/devwork"),
     },
   ], [navigate]);
   const onLogout = async () => {
