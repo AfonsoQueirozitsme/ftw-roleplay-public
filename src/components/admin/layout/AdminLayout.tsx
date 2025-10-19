@@ -221,7 +221,8 @@ type AdminNavSectionId =
   | "content"
   | "operations"
   | "dev"
-  | "governance";
+  | "governance"
+  | "system";
 
 type AdminNavItem = {
   to: string;
@@ -278,6 +279,11 @@ const SECTION_ACCENT: Record<AdminNavSectionId, { pill: string; glow: string; bo
     pill: "from-slate-500/80 via-slate-400/80 to-slate-300/80",
     glow: "bg-slate-500/15",
     border: "border-slate-400/40",
+  },
+  system: {
+    pill: "from-gray-500/80 via-gray-400/80 to-gray-300/80",
+    glow: "bg-gray-500/15",
+    border: "border-gray-400/40",
   },
 };
 
