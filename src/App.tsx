@@ -43,6 +43,9 @@ import Resources from "@/pages/admin/resources";
 import DevWork from "@/pages/admin/DevWork";
 import DevLeaders from "@/pages/admin/DevLeaders";
 import RolesManagement from "@/pages/admin/roles";
+import AdminTickets from "@/pages/admin/tickets";
+import AdminRules from "@/pages/admin/rules";
+import AdminPunishments from "@/pages/admin/punishments";
 
 /* — Redirect externo — */
 function ExternalShopRedirect() {
@@ -111,6 +114,9 @@ export default function App() {
         <Route path="resources" element={<Resources />} />
         <Route path="devleaders" element={<DevLeaders />} />
         <Route path="roles" element={<RolesManagement />} />
+        <Route path="tickets" element={<AdminTickets />} />
+        <Route path="rules" element={<AdminRules />} />
+        <Route path="punishments" element={<AdminPunishments />} />
         <Route path="*" element={<NotFound />} />
       </Route>
     </Routes>

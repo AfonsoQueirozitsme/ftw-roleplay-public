@@ -11,6 +11,22 @@ const Icon = {
       <path strokeWidth="2" strokeLinecap="round" d="M4 6h16M4 12h16M4 18h16" />
     </svg>
   ),
+  shield: (p: any) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...p}>
+      <path strokeWidth="2" d="M12 2L3 7v6c0 5.5 3.8 10.7 9 12 5.2-1.3 9-6.5 9-12V7l-9-5z" />
+    </svg>
+  ),
+  ticket: (p: any) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...p}>
+      <path strokeWidth="2" d="M2 7v2c0 1.1.9 2 2 2s2 .9 2 2-.9 2-2 2-2 .9-2 2v2c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2v-2c0-1.1-.9-2-2-2s-2-.9-2-2 .9-2 2-2 2-.9 2-2V7c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2z" />
+    </svg>
+  ),
+  ban: (p: any) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...p}>
+      <circle cx="12" cy="12" r="10" strokeWidth="2" />
+      <path strokeWidth="2" d="M4.93 4.93l14.14 14.14" />
+    </svg>
+  ),
   search: (p: any) => (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...p}>
       <circle cx="11" cy="11" r="7" strokeWidth="2" />
@@ -955,6 +971,10 @@ useEffect(() => {
       { to: "/admin/logs", label: "Logs", icon: Icon.activity, need: ACL["/admin/logs"] as string[], section: "operations" },
       { to: "/admin/imagens", label: "Galeria", icon: Icon.news, need: ACL["/admin/imagens"] as string[], section: "content" },
       { to: "/admin/resources", label: "Recursos", icon: Icon.book, need: ACL["/admin/resources"] as string[], section: "content" },
+      { to: "/admin/roles", label: "Roles & Permissões", icon: Icon.shield, need: "staff", section: "system" },
+      { to: "/admin/tickets", label: "Tickets", icon: Icon.ticket, need: "staff", section: "system" },
+      { to: "/admin/rules", label: "Rules", icon: Icon.book, need: "staff", section: "system" },
+      { to: "/admin/punishments", label: "Punições", icon: Icon.ban, need: "staff", section: "system" },
       { to: "/admin/devwork", label: "Dev Work", icon: Icon.code, need: ACL["/admin/devwork"] as string[], section: "dev" },
       { to: "/admin/devleaders", label: "Dev Leaders", icon: Icon.users, need: ACL["/admin/devleaders"] as string[], section: "dev" },
     ];
