@@ -3,6 +3,7 @@ import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { listOnlinePlayers, listPlayers } from "@/lib/api/players";
 import { listVehiclesGlobal } from "@/lib/api/vehicles";
+import { getUserPermissions } from "@/shared/permissions";
 
 const Icon = {
   menu: (p: any) => (
@@ -86,6 +87,12 @@ const Icon = {
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...p}>
       <circle cx="12" cy="12" r="3" strokeWidth="2" />
       <path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M19.4 15a1.6 1.6 0 0 0 .3 1.7l.1.1a2 2 0 0 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.7-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 0 1-4 0v-.2a1.6 1.6 0 0 0-1-1.5 1.6 1.6 0 0 0-1.7.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.6 1.6 0 0 0 5 15a1.6 1.6 0 0 0-1.5-1H3a2 2 0 0 1 0-4h.2A1.6 1.6 0 0 0 5 9a1.6 1.6 0 0 0-.3-1.7l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1A1.6 1.6 0 0 0 9 5c.7-.2 1.2-.8 1.2-1.5V3a2 2 0 0 1 4 0v.2c0 .7.5 1.3 1.2 1.5a1.6 1.6 0 0 0 1.7-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1A1.6 1.6 0 0 0 19 9c.7.2 1.3.8 1.2 1.5V11c0 .7.5 1.3 1.2 1.5z" />
+    </svg>
+  ),
+  account: (p: any) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...p}>
+      <circle cx="12" cy="8" r="4" strokeWidth="2" />
+      <path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M4 20c0-3.314 3.582-6 8-6s8 2.686 8 6" />
     </svg>
   ),
   chevronLeft: (p: any) => (
@@ -869,14 +876,48 @@ export default function AdminLayout() {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [onlineOpen, setOnlineOpen] = useState(false);
   const [email, setEmail] = useState<string | null>(null);
+  const [userPermissions, setUserPermissions] = useState<string[]>([]);
+  const [primaryPermission, setPrimaryPermission] = useState<string | null>(null);
+  const [permissionsLoading, setPermissionsLoading] = useState(false);
 
-  useEffect(() => {
-    const fetchUser = async () => {
-      const { data } = await supabase.auth.getUser();
-      setEmail(data.user?.email ?? null);
-    };
-    fetchUser();
-  }, []);
+useEffect(() => {
+  const fetchUserAndPermissions = async () => {
+    const { data, error } = await supabase.auth.getUser();
+
+    if (error) {
+      console.error("[admin-layout] Failed to fetch auth user", error);
+      return;
+    }
+
+    const user = data.user;
+    const userId = user?.id ?? null;
+
+    setEmail(user?.email ?? null);
+    console.log("[admin-layout] resolved auth user", { userId, email: user?.email });
+
+    if (!userId) {
+      setUserPermissions([]);
+      setPrimaryPermission(null);
+      return;
+    }
+
+    setPermissionsLoading(true);
+    try {
+      const permissions = await getUserPermissions(userId);
+      console.log("[admin-layout] Loaded permissions for user", { userId, permissions });
+      setUserPermissions(permissions);
+      setPrimaryPermission(permissions[0] ?? null);
+    } catch (err) {
+      console.error("[admin-layout] Failed to load permissions", err);
+      setUserPermissions([]);
+      setPrimaryPermission(null);
+    } finally {
+      setPermissionsLoading(false);
+    }
+  };
+
+  fetchUserAndPermissions();
+}, []);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {

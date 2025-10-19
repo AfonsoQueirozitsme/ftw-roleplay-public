@@ -37,9 +37,9 @@ type CachedPermissions = {
 const CACHE_TTL_MS = 5 * 60 * 1000;
 const permissionsCache = new Map<string, CachedPermissions>();
 
-const debug = (...args: unknown[]) => console.debug("[permissions]", ...args);
-const warn = (...args: unknown[]) => console.warn("[permissions]", ...args);
-const error = (...args: unknown[]) => console.error("[permissions]", ...args);
+const debug = (...args: unknown[]) => console.log("[permissions] debug:", ...args);
+const warn = (...args: unknown[]) => console.warn("[permissions] warn:", ...args);
+const error = (...args: unknown[]) => console.error("[permissions] error:", ...args);
 
 const deriveLegacyGroups = (permissions: Set<string>) => {
   const ids = Array.from(permissions);
@@ -90,7 +90,7 @@ export async function getUserPermissions(userId: string): Promise<string[]> {
 
   const cached = permissionsCache.get(userId);
   if (cached && cached.expiresAt > Date.now()) {
-    debug("Cache hit", { userId, count: cached.permissions.length });
+    debug("Cache hit", { userId, count: cached.permissions.length, permissions: cached.permissions });
     return cached.permissions;
   }
 
