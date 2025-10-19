@@ -11,11 +11,6 @@ const Icon = {
       <path strokeWidth="2" strokeLinecap="round" d="M4 6h16M4 12h16M4 18h16" />
     </svg>
   ),
-  shield: (p: any) => (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...p}>
-      <path strokeWidth="2" d="M12 2L3 7v6c0 5.5 3.8 10.7 9 12 5.2-1.3 9-6.5 9-12V7l-9-5z" />
-    </svg>
-  ),
   ticket: (p: any) => (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...p}>
       <path strokeWidth="2" d="M2 7v2c0 1.1.9 2 2 2s2 .9 2 2-.9 2-2 2-2 .9-2 2v2c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2v-2c0-1.1-.9-2-2-2s-2-.9-2-2 .9-2 2-2 2-.9 2-2V7c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2z" />
@@ -297,6 +292,10 @@ const ACL: Record<string, string[] | "staff"> = {
   "/admin/resources": ["admin.access", "resources.manage"],
   "/admin/devwork": ["admin.access", "roles.manage", "analytics.view"],
   "/admin/devleaders": ["admin.access", "roles.manage", "analytics.view"],
+  "/admin/roles": ["admin.access", "roles.manage"],
+  "/admin/tickets": ["admin.access", "tickets.manage"],
+  "/admin/rules": ["admin.access", "rules.manage"],
+  "/admin/punishments": ["admin.access", "punishments.manage"],
 };
 
 const requiredForPath = (pathname: string): string[] | "staff" => {
