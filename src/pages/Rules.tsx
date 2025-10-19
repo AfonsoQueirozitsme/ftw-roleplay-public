@@ -46,19 +46,19 @@ const fallbackSections: RuleSection[] = [
     iconPath: "M12 2l7 3v6c0 5.25-3.438 9.938-7 11-3.562-1.062-7-5.75-7-11V5l7-3z",
     rules: buildRuleItems("1", [
       { title: "Respeito", description: "Respeite todos os jogadores." },
-      { title: "Sem cheats", description: "\u00C9 proibido uso de cheats ou exploits." },
+      { title: "Sem cheats", description: "É proibido uso de cheats ou exploits." },
     ]),
   },
   {
     id: "2",
-    title: "Pol\u00EDcia",
-    subtitle: "Regras espec\u00EDficas para policiais",
+    title: "Polícia",
+    subtitle: "Regras específicas para policiais",
     color: "text-sky-400",
     gradient: "from-sky-500 to-blue-500",
     iconPath:
       "M4 4h16a2 2 0 0 1 2 2v4.5a2 2 0 0 1-1.106 1.788l-8 4a2 2 0 0 1-1.788 0l-8-4A2 2 0 0 1 2 10.5V6a2 2 0 0 1 2-2zm0 8.618V18a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-5.382l-7.106 3.553a4 4 0 0 1-3.788 0z",
     rules: buildRuleItems("2", [
-      { title: "Uso de armas", description: "Policiais s\u00F3 podem usar armas em servi\u00E7o." },
+      { title: "Uso de armas", description: "Policiais só podem usar armas em serviço." },
     ]),
   },
   {
@@ -436,7 +436,7 @@ const Rules: React.FC = () => {
                     {section.filteredRules.map((rule) => (
                       <li key={rule.id} className="flex items-start gap-4">
                         <span
-                          className={`mt-1.5 h-2.5 w-2.5 flex-shrink-0 bg-gradient-to-br ${section.gradient} shadow-[0_0_0_4px_rgba(229,62,48,0.15)]`}
+                          className={`mt-1.5 h-2.5 w-2.5 flex-shrink-0 bg-gradient-to-br ${section.gradient} shadow-[0_0_0_4px_rgba(255,255,255,0.12)]`}
                         />
                         <div className="leading-relaxed text-white/90">
                           <p className="font-semibold text-white">{highlightText(rule.title)}</p>
