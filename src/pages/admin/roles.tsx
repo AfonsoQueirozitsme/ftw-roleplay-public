@@ -15,14 +15,24 @@ const RolesManagement: React.FC = () => {
     const fetchData = async () => {
       try {
         const [rolesRes, permsRes] = await Promise.all([
-          supabase.from('roles').select('*'),
+          supabase
+            .from('roles')
+            .select(`
+              *,
+              role_permissions (
+                permission_id
+              )
+            `),
           supabase.from('permissions').select('*')
         ]);
 
         if (rolesRes.error) throw rolesRes.error;
         if (permsRes.error) throw permsRes.error;
 
-        setRoles(rolesRes.data);
+        setRoles(rolesRes.data.map(role => ({
+          ...role,
+          permissions: []
+        })));
         setPermissions(permsRes.data);
       } catch (error) {
         console.error('Error fetching data:', error);
@@ -41,7 +51,10 @@ const RolesManagement: React.FC = () => {
     const fetchRolePermissions = async () => {
       const { data, error } = await supabase
         .from('role_permissions')
-        .select('permission_id')
+        .select(`
+          *,
+          permissions:permission_id (*)
+        `)
         .eq('role_id', selectedRole.id);
 
       if (error) {
@@ -49,15 +62,14 @@ const RolesManagement: React.FC = () => {
         return;
       }
 
-      const permissionIds = data.map(rp => rp.permission_id);
       setSelectedRole(prev => ({
         ...prev!,
-        permissions: permissions.filter(p => permissionIds.includes(p.id))
+        permissions: data?.map(rp => rp.permissions).filter(Boolean) || []
       }));
     };
 
     fetchRolePermissions();
-  }, [selectedRole?.id, permissions]);
+  }, [selectedRole?.id]);
 
   const handleCreateRole = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
