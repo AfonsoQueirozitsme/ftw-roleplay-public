@@ -1,9 +1,10 @@
-// /src/pages/dashboard/RulesTab.tsx
+﻿// /src/pages/dashboard/RulesTab.tsx
 import React, { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Search } from "lucide-react";
 import Spinner from "@/components/layout/Spinner";
 import { supabase } from "@/lib/supabase";
+import { markdownToHtml } from "@/utils/markdown";
 
 type Post = {
   id: string;
@@ -16,94 +17,75 @@ type Post = {
 const RING =
   "focus:outline-none focus:ring-2 focus:ring-[#e53e30]/70 focus:ring-offset-2 focus:ring-offset-[#151515]";
 
-/* — Markdown leve e seguro (inline) — */
-function escapeHtml(s: string) {
-  return s.replace(/&/g, "&amp;")
-          .replace(/</g, "&lt;")
-          .replace(/>/g, "&gt;")
-          .replace(/"/g, "&quot;");
-}
-function mdToHtml(src: string) {
-  let s = escapeHtml(src);
-  s = s.replace(/`([^`]+)`/g, (_m, p1) => `<code class="px-1 py-0.5 bg-[#151515] border border-[#6c6c6c]">${p1}</code>`);
-  s = s.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
-  s = s.replace(/(^|[\s(])\*([^*]+)\*(?=([\s.,;:!?)])|$)/g, (_m, p1, p2) => `${p1}<em>${p2}</em>`);
-  s = s.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, `<a class="underline underline-offset-2" href="$2" target="_blank" rel="noopener noreferrer">$1</a>`);
-  s = s.replace(/^(?:-|\u2022)\s+(.*)$/gm, "• $1");
-  s = s.replace(/\n/g, "<br/>");
-  return s;
-}
-
-/* — Conteúdo seed — */
 const SEED_POSTS: Post[] = [
   {
     id: "ea-1",
     title: "Como funciona o Early Access",
     date: "2025-08-01",
-    tags: ["early-access", "guia", "início"],
-    content: `O **Early Access** dá-te entrada faseada ao FTW Roleplay.  
-- Slots são **limitados**.  
-- A candidatura é avaliada por critérios de **comportamento**, **RP** e **histórico**.  
-Sugestão: prepara **backstory**, lê as *regras principais* e garante que tens o **Discord** verificado.`,
+    tags: ["early-access", "guia", "inÃ­cio"],
+    content: `O **Early Access** dÃ¡-te entrada faseada ao FTW Roleplay.  
+- Slots sÃ£o **limitados**.  
+- A candidatura Ã© avaliada por critÃ©rios de **comportamento**, **RP** e **histÃ³rico**.  
+SugestÃ£o: prepara **backstory**, lÃª as *regras principais* e garante que tens o **Discord** verificado.`,
   },
   {
     id: "ea-2",
-    title: "Requisitos técnicos e performance",
+    title: "Requisitos tÃ©cnicos e performance",
     date: "2025-08-03",
-    tags: ["performance", "técnico"],
-    content: `Para uma experiência estável:  
-- Ligações **estáveis** (> 20 Mbps)  
+    tags: ["performance", "tÃ©cnico"],
+    content: `Para uma experiÃªncia estÃ¡vel:  
+- LigaÃ§Ãµes **estÃ¡veis** (> 20 Mbps)  
 - FPS: ideal > **60**  
 - Fecha apps pesadas antes de entrar.  
-Problemas? Vê o tópico **Troubleshooting** ou abre um \`Report\`.`,
+Problemas? VÃª o tÃ³pico **Troubleshooting** ou abre um \`Report\`.`,
   },
   {
     id: "ea-3",
     title: "Economia, empregos e empresas",
     date: "2025-08-05",
     tags: ["economia", "gameplay"],
-    content: `A economia é **progressiva**: começa com **tarefas base** e evolui para **empregos especializados**.  
+    content: `A economia Ã© **progressiva**: comeÃ§a com **tarefas base** e evolui para **empregos especializados**.  
 Empresas **player-owned** abrem em *waves*.  
-Lê o *roadmap* de carreiras e evita *powergaming*/ *metagaming*.`,
+LÃª o *roadmap* de carreiras e evita *powergaming*/ *metagaming*.`,
   },
   {
     id: "ea-4",
-    title: "Polícia, crime e equilíbrio",
+    title: "PolÃ­cia, crime e equilÃ­brio",
     date: "2025-08-06",
-    tags: ["polícia", "crime", "equilíbrio"],
-    content: `A polícia segue *guidelines* de **proporcionalidade**.  
-Gangues têm limites por **slot** e **tempo de resposta**.  
-Objetivo: **tensão** sem perder **realismo**. Denúncias? Usa o separador **Reports**.`,
+    tags: ["polÃ­cia", "crime", "equilÃ­brio"],
+    content: `A polÃ­cia segue *guidelines* de **proporcionalidade**.  
+Gangues tÃªm limites por **slot** e **tempo de resposta**.  
+Objetivo: **tensÃ£o** sem perder **realismo**. DenÃºncias? Usa o separador **Reports**.`,
   },
   {
     id: "ea-5",
     title: "FAQs e Troubleshooting",
     date: "2025-08-10",
     tags: ["faq", "ajuda"],
-    content: `**Não consigo ligar?** Limpa cache do FiveM e reinicia o Discord.  
+    content: `**NÃ£o consigo ligar?** Limpa cache do FiveM e reinicia o Discord.  
 **Crashou?** Verifica drivers e reduz *textures*.  
-**Ban appeals?** Só via **Reports**.  
-Mais dúvidas? Junta-te ao Discord em #suporte.`,
+**Ban appeals?** SÃ³ via **Reports**.  
+Mais dÃºvidas? Junta-te ao Discord em #suporte.`,
   },
   {
     id: "ea-6",
-    title: "Calendário de eventos e wipes",
+    title: "CalendÃ¡rio de eventos e wipes",
     date: "2025-08-15",
     tags: ["eventos", "wipes", "cronograma"],
     content: `Eventos semanais **PVE/PVP** e *mini-arcs* RP.  
-**Wipes** só por necessidade de equilíbrio, sempre com **aviso**.  
-Consulta o calendário no **dashboard** e no **Discord**.`,
+**Wipes** sÃ³ por necessidade de equilÃ­brio, sempre com **aviso**.  
+Consulta o calendÃ¡rio no **dashboard** e no **Discord**.`,
   },
 ];
 
-/* — Util — */
+/* â€” Util â€” */
 function formatDate(d: string) {
   try { return new Date(d).toLocaleDateString("pt-PT", { day: "2-digit", month: "short", year: "numeric" }); }
   catch { return d; }
 }
 function excerpt(s: string, n = 140) {
   const t = s.replace(/\n/g, " ").trim();
-  return t.length > n ? t.slice(0, n - 1) + "…" : t;
+  return t.length > n ? t.slice(0, n - 1) + "â€¦" : t;
 }
 
 export default function RulesTab() {
@@ -116,7 +98,7 @@ export default function RulesTab() {
   const [searching, setSearching] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
 
-  // debounce visual do search → mostra spinner enquanto "procura"
+  // debounce visual do search â†’ mostra spinner enquanto "procura"
   useEffect(() => {
     if (!query) { setSearching(false); return; }
     setSearching(true);
@@ -152,7 +134,7 @@ export default function RulesTab() {
         if (!ignore && !error && data) {
           const mapped: Post[] = data.map((row) => ({
             id: row.id,
-            title: row.title ?? "Sem título",
+            title: row.title ?? "Sem tÃ­tulo",
             date: row.published_at ?? row.created_at ?? new Date().toISOString(),
             tags: Array.isArray(row.tags)
               ? row.tags
@@ -164,7 +146,7 @@ export default function RulesTab() {
           setSourcePosts(mapped);
         }
       } catch (err) {
-        console.error("Falha a carregar posts da área de jogadores", err);
+        console.error("Falha a carregar posts da Ã¡rea de jogadores", err);
       } finally {
         if (!ignore) setLoadingPosts(false);
       }
@@ -196,7 +178,7 @@ export default function RulesTab() {
       {/* Header */}
       <div className="mb-4 flex items-end justify-between gap-4">
         <div>
-          <p className="text-xs tracking-widest text-[#6c6c6c] uppercase">Informação</p>
+          <p className="text-xs tracking-widest text-[#6c6c6c] uppercase">InformaÃ§Ã£o</p>
           <h2
             className="text-2xl font-bold"
             style={{ fontFamily: "Goldman, system-ui, sans-serif" }}
@@ -212,7 +194,7 @@ export default function RulesTab() {
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Pesquisar posts…"
+              placeholder="Pesquisar postsâ€¦"
               className={`w-full pl-9 pr-10 py-2 bg-[#151515] border border-[#6c6c6c] text-sm rounded-none ${RING}`}
             />
             {/* spinner do search */}
@@ -247,14 +229,14 @@ export default function RulesTab() {
                 onClick={() => setSelected(null)}
                 className="inline-flex items-center gap-2 px-3 py-1 border border-[#6c6c6c] text-sm hover:bg-[#fbfbfb]/10 rounded-none"
               >
-                <span className="inline-block -rotate-180">↩</span> Voltar
+                <span className="inline-block -rotate-180">â†©</span> Voltar
               </button>
             )}
           </div>
 
           {posts.length === 0 ? (
             <div className="rounded-xl border border-dashed border-[#6c6c6c] px-4 py-10 text-center text-sm text-[#fbfbfb]/60">
-              Sem publicações disponíveis no momento.
+              Sem publicaÃ§Ãµes disponÃ­veis no momento.
             </div>
           ) : (
             <ul className="divide-y divide-[#6c6c6c]">
@@ -276,7 +258,7 @@ export default function RulesTab() {
                             {p.title}
                           </h3>
                           <p className="text-xs text-[#fbfbfb]/70 mt-0.5">
-                            {formatDate(p.date)} • {excerpt(p.content)}
+                            {formatDate(p.date)} â€¢ {excerpt(p.content)}
                           </p>
                           <div className="mt-2 flex flex-wrap gap-2">
                             {p.tags.map((t) => (
@@ -330,7 +312,7 @@ export default function RulesTab() {
                           {active.title}
                         </h3>
                         <p className="text-xs text-[#fbfbfb]/70 mt-1">
-                          {formatDate(active.date)} •{" "}
+                          {formatDate(active.date)} â€¢{" "}
                           {active.tags.map((t) => (
                             <button
                               key={t}
@@ -354,7 +336,7 @@ export default function RulesTab() {
 
                     <div
                       className="mt-4 text-[15px] leading-relaxed"
-                      dangerouslySetInnerHTML={{ __html: mdToHtml(active.content) }}
+                      dangerouslySetInnerHTML={{ __html: markdownToHtml(active.content) }}
                     />
                   </>
                 )}
@@ -366,3 +348,6 @@ export default function RulesTab() {
     </section>
   );
 }
+
+
+

@@ -1,6 +1,7 @@
-import React, { useEffect, useMemo, useState } from "react";
+﻿import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import type { Database } from "@/types/database";
+import MarkdownEditor from "@/components/admin/MarkdownEditor";
 
 type EventRow = Database["public"]["Tables"]["events"]["Row"];
 
@@ -127,11 +128,11 @@ export default function AdminEventsPage() {
     setFormError(null);
 
     if (!form.title.trim()) {
-      setFormError("Título é obrigatório.");
+      setFormError("TÃ­tulo Ã© obrigatÃ³rio.");
       return;
     }
     if (!form.starts_at) {
-      setFormError("Data de início é obrigatória.");
+      setFormError("Data de inÃ­cio Ã© obrigatÃ³ria.");
       return;
     }
 
@@ -184,9 +185,9 @@ export default function AdminEventsPage() {
     <div className="space-y-6">
       <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-2xl font-semibold text-white">Calendário de eventos</h2>
+          <h2 className="text-2xl font-semibold text-white">CalendÃ¡rio de eventos</h2>
           <p className="text-sm text-white/60">
-            Adiciona e gere eventos que aparecem na página pública de calendário.
+            Adiciona e gere eventos que aparecem na pÃ¡gina pÃºblica de calendÃ¡rio.
           </p>
         </div>
         <div className="flex gap-2">
@@ -219,7 +220,7 @@ export default function AdminEventsPage() {
 
       {!loading && !error && filtered.length === 0 && (
         <div className="rounded-xl border border-dashed border-white/15 bg-white/5 px-6 py-12 text-center text-white/60">
-          Sem eventos agendados. Cria o primeiro clicando em “Novo evento”.
+          Sem eventos agendados. Cria o primeiro clicando em â€œNovo eventoâ€.
         </div>
       )}
 
@@ -235,8 +236,8 @@ export default function AdminEventsPage() {
                   <div>
                     <h3 className="text-lg font-semibold">{row.title}</h3>
                     <p className="text-xs text-white/60">
-                      Início: {formatDay(row.starts_at)}{" "}
-                      {row.ends_at ? `• Fim: ${formatDay(row.ends_at)}` : ""}
+                      InÃ­cio: {formatDay(row.starts_at)}{" "}
+                      {row.ends_at ? `â€¢ Fim: ${formatDay(row.ends_at)}` : ""}
                     </p>
                     {row.location && (
                       <p className="text-xs text-white/50">Local: {row.location}</p>
@@ -288,7 +289,7 @@ export default function AdminEventsPage() {
                   {form.id ? "Editar evento" : "Novo evento"}
                 </h3>
                 <p className="text-sm text-white/60">
-                  Define título, datas e descrição para o calendário público.
+                  Define tÃ­tulo, datas e descriÃ§Ã£o para o calendÃ¡rio pÃºblico.
                 </p>
               </div>
               <button
@@ -302,7 +303,7 @@ export default function AdminEventsPage() {
 
             <div className="grid gap-4 sm:grid-cols-2">
               <label className="flex flex-col gap-1 text-sm text-white/70">
-                Título
+                TÃ­tulo
                 <input
                   value={form.title}
                   onChange={(event) => setForm((prev) => ({ ...prev, title: event.target.value }))}
@@ -322,7 +323,7 @@ export default function AdminEventsPage() {
                 />
               </label>
               <label className="flex flex-col gap-1 text-sm text-white/70">
-                Início
+                InÃ­cio
                 <input
                   type="datetime-local"
                   value={form.starts_at}
@@ -345,7 +346,7 @@ export default function AdminEventsPage() {
             </div>
 
             <label className="flex flex-col gap-1 text-sm text-white/70">
-              Tags (separadas por vírgula)
+              Tags (separadas por vÃ­rgula)
               <input
                 value={form.tags}
                 onChange={(event) => setForm((prev) => ({ ...prev, tags: event.target.value }))}
@@ -354,17 +355,13 @@ export default function AdminEventsPage() {
               />
             </label>
 
-            <label className="flex flex-col gap-1 text-sm text-white/70">
-              Descrição
-              <textarea
-                value={form.description}
-                onChange={(event) =>
-                  setForm((prev) => ({ ...prev, description: event.target.value }))
-                }
-                className="h-40 rounded-2xl border border-white/15 bg-white/5 px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-white/30"
-                placeholder="Detalhes do evento..."
-              />
-            </label>
+                        <MarkdownEditor
+              label="Descricao"
+              value={form.description}
+              onChange={(description) => setForm((prev) => ({ ...prev, description }))}
+              placeholder="Markdown leve: **negrito**, *italico*, listas, links."
+              minRows={14}
+            />
 
             {formError && (
               <div className="rounded-xl border border-rose-400/40 bg-rose-500/20 px-4 py-2 text-sm text-rose-100">
@@ -395,3 +392,4 @@ export default function AdminEventsPage() {
     </div>
   );
 }
+

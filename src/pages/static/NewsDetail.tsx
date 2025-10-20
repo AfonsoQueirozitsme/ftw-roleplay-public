@@ -1,10 +1,11 @@
-// src/pages/static/NewsDetail.tsx
+﻿// src/pages/static/NewsDetail.tsx
 import React, { useEffect, useState } from "react";
 import StaticPageShell from "./StaticPageShell";
 import { useParams, Link } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import UltraSpinner from "@/components/layout/Spinner";
 import { ArrowLeft } from "lucide-react";
+import { markdownToHtml } from "@/utils/markdown";
 
 type NewsOne = {
   id: string;
@@ -39,7 +40,7 @@ export default function NewsDetail() {
   if (loading) {
     return (
       <StaticPageShell>
-        <div className="py-16 grid place-items-center"><UltraSpinner size={84} label="A carregar…" /></div>
+        <div className="py-16 grid place-items-center"><UltraSpinner size={84} label="A carregarâ€¦" /></div>
       </StaticPageShell>
     );
   }
@@ -47,7 +48,7 @@ export default function NewsDetail() {
   if (!item) {
     return (
       <StaticPageShell>
-        <p className="opacity-70">Notícia não encontrada.</p>
+        <p className="opacity-70">NotÃ­cia nÃ£o encontrada.</p>
       </StaticPageShell>
     );
   }
@@ -74,12 +75,12 @@ export default function NewsDetail() {
 
       {item.excerpt && <p className="opacity-85 text-lg mb-4">{item.excerpt}</p>}
       {item.content ? (
-        <article className="prose prose-invert max-w-none">
-          <p className="whitespace-pre-wrap">{item.content}</p>
-        </article>
+        <article className="prose prose-invert max-w-none" dangerouslySetInnerHTML={{ __html: markdownToHtml(item.content ?? "") }} />
       ) : (
-        <p className="opacity-75">Sem conteúdo adicional.</p>
+        <p className="opacity-75">Sem conteÃºdo adicional.</p>
       )}
     </StaticPageShell>
   );
 }
+
+

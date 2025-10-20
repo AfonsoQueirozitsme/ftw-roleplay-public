@@ -1,6 +1,7 @@
-import React, { useEffect, useMemo, useState } from "react";
+﻿import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import type { Database } from "@/types/database";
+import MarkdownEditor from "@/components/admin/MarkdownEditor";
 
 type NewsRow = Database["public"]["Tables"]["news"]["Row"];
 
@@ -115,11 +116,11 @@ export default function AdminNewsPage() {
     };
 
     if (!payload.title) {
-      setFormError("Título é obrigatório.");
+      setFormError("TÃ­tulo Ã© obrigatÃ³rio.");
       return;
     }
     if (!payload.slug) {
-      setFormError("Slug é obrigatório.");
+      setFormError("Slug Ã© obrigatÃ³rio.");
       return;
     }
 
@@ -166,33 +167,33 @@ export default function AdminNewsPage() {
     <div className="space-y-6">
       <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-2xl font-semibold text-white">Notícias</h2>
-          <p className="text-sm text-white/60">Gerir publicações apresentadas na página pública.</p>
+          <h2 className="text-2xl font-semibold text-white">NotÃ­cias</h2>
+          <p className="text-sm text-white/60">Gerir publicaÃ§Ãµes apresentadas na pÃ¡gina pÃºblica.</p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             className="rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-white/30"
-            placeholder="Procurar por título ou slug"
+            placeholder="Procurar por tÃ­tulo ou slug"
           />
           <button
             onClick={openCreate}
             className="inline-flex items-center gap-2 rounded-xl border border-emerald-400/30 bg-emerald-400/10 px-4 py-2 text-sm font-medium text-emerald-100 transition hover:border-emerald-400/60 hover:bg-emerald-400/20"
           >
-            Nova notícia
+            Nova notÃ­cia
           </button>
         </div>
       </header>
 
       {loading && (
         <div className="flex items-center gap-2 text-sm text-white/70">
-          <Spinner /> A carregar notícias...
+          <Spinner /> A carregar notÃ­cias...
         </div>
       )}
       {error && (
         <div className="rounded-xl border border-rose-400/40 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
-          Falha a carregar notícias: {error}
+          Falha a carregar notÃ­cias: {error}
         </div>
       )}
 
@@ -200,7 +201,7 @@ export default function AdminNewsPage() {
         <div className="grid gap-4">
           {filtered.length === 0 && (
             <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-6 text-center text-sm text-white/60">
-              Sem notícias para apresentar.
+              Sem notÃ­cias para apresentar.
             </div>
           )}
           {filtered.map((row) => (
@@ -236,11 +237,11 @@ export default function AdminNewsPage() {
                 </div>
                 <div>
                   <dt className="uppercase tracking-wide text-white/35">Criada</dt>
-                  <dd>{row.created_at ? new Date(row.created_at).toLocaleString("pt-PT") : "—"}</dd>
+                  <dd>{row.created_at ? new Date(row.created_at).toLocaleString("pt-PT") : "â€”"}</dd>
                 </div>
                 <div>
                   <dt className="uppercase tracking-wide text-white/35">Capa</dt>
-                  <dd>{row.cover_url ?? "—"}</dd>
+                  <dd>{row.cover_url ?? "â€”"}</dd>
                 </div>
               </dl>
             </article>
@@ -257,7 +258,7 @@ export default function AdminNewsPage() {
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h3 className="text-xl font-semibold">
-                  {form.id ? "Editar notícia" : "Nova notícia"}
+                  {form.id ? "Editar notÃ­cia" : "Nova notÃ­cia"}
                 </h3>
                 <p className="text-sm text-white/60">Preenche os campos e guarda para publicar.</p>
               </div>
@@ -272,7 +273,7 @@ export default function AdminNewsPage() {
 
             <div className="grid gap-4 sm:grid-cols-2">
               <label className="flex flex-col gap-1 text-sm text-white/70">
-                Título
+                TÃ­tulo
                 <input
                   value={form.title}
                   onChange={(event) => setForm((prev) => ({ ...prev, title: event.target.value }))}
@@ -319,14 +320,13 @@ export default function AdminNewsPage() {
               />
             </label>
 
-            <label className="flex flex-col gap-1 text-sm text-white/70">
-              Conteúdo
-              <textarea
-                value={form.content}
-                onChange={(event) => setForm((prev) => ({ ...prev, content: event.target.value }))}
-                className="h-48 rounded-2xl border border-white/15 bg-white/5 px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-white/30"
-              />
-            </label>
+                        <MarkdownEditor
+              label="Conteudo"
+              value={form.content}
+              onChange={(content) => setForm((prev) => ({ ...prev, content }))}
+              placeholder="Suporta markdown leve: **negrito**, *italico*, listas e links."
+              minRows={18}
+            />
 
             {formError && (
               <div className="rounded-xl border border-rose-400/40 bg-rose-500/20 px-4 py-2 text-sm text-rose-100">
@@ -357,3 +357,5 @@ export default function AdminNewsPage() {
     </div>
   );
 }
+
+

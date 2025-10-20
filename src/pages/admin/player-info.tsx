@@ -1,6 +1,7 @@
-import React, { useEffect, useMemo, useState } from "react";
+﻿import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import type { Database } from "@/types/database";
+import MarkdownEditor from "@/components/admin/MarkdownEditor";
 
 type InfoRow = Database["public"]["Tables"]["player_info_posts"]["Row"];
 
@@ -129,11 +130,11 @@ export default function AdminPlayerInfoPage() {
     };
 
     if (!payload.title) {
-      setFormError("Título é obrigatório.");
+      setFormError("TÃ­tulo Ã© obrigatÃ³rio.");
       return;
     }
     if (!payload.content) {
-      setFormError("Conteúdo é obrigatório.");
+      setFormError("ConteÃºdo Ã© obrigatÃ³rio.");
       return;
     }
 
@@ -179,9 +180,9 @@ export default function AdminPlayerInfoPage() {
     <div className="space-y-6">
       <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-2xl font-semibold text-white">Posts da área de jogadores</h2>
+          <h2 className="text-2xl font-semibold text-white">Posts da Ã¡rea de jogadores</h2>
           <p className="text-sm text-white/60">
-            Gere os conteúdos informativos visíveis no painel dos jogadores.
+            Gere os conteÃºdos informativos visÃ­veis no painel dos jogadores.
           </p>
         </div>
         <div className="flex gap-2">
@@ -214,7 +215,7 @@ export default function AdminPlayerInfoPage() {
 
       {!loading && !error && filtered.length === 0 && (
         <div className="rounded-xl border border-dashed border-white/15 bg-white/5 px-6 py-12 text-center text-white/60">
-          Sem posts disponíveis. Cria o primeiro clicando em “Novo post”.
+          Sem posts disponÃ­veis. Cria o primeiro clicando em â€œNovo postâ€.
         </div>
       )}
 
@@ -234,7 +235,7 @@ export default function AdminPlayerInfoPage() {
                 </div>
                 <p className="text-sm text-white/70 line-clamp-4">
                   {(row.content ?? "").substring(0, 220)}
-                  {(row.content ?? "").length > 220 ? "…" : ""}
+                  {(row.content ?? "").length > 220 ? "â€¦" : ""}
                 </p>
                 <div className="flex flex-wrap gap-2">
                   {(row.tags ?? []).map((tag) => (
@@ -279,7 +280,7 @@ export default function AdminPlayerInfoPage() {
                   {form.id ? "Editar post" : "Novo post"}
                 </h3>
                 <p className="text-sm text-white/60">
-                  Preenche os campos para atualizar a área de jogadores.
+                  Preenche os campos para atualizar a Ã¡rea de jogadores.
                 </p>
               </div>
               <button
@@ -292,7 +293,7 @@ export default function AdminPlayerInfoPage() {
             </div>
 
             <label className="flex flex-col gap-1 text-sm text-white/70">
-              Título
+              TÃ­tulo
               <input
                 value={form.title}
                 onChange={(event) => setForm((prev) => ({ ...prev, title: event.target.value }))}
@@ -302,7 +303,7 @@ export default function AdminPlayerInfoPage() {
             </label>
 
             <label className="flex flex-col gap-1 text-sm text-white/70">
-              Tags (separadas por vírgula)
+              Tags (separadas por vÃ­rgula)
               <input
                 value={form.tags}
                 onChange={(event) => setForm((prev) => ({ ...prev, tags: event.target.value }))}
@@ -321,16 +322,13 @@ export default function AdminPlayerInfoPage() {
               />
             </label>
 
-            <label className="flex flex-col gap-1 text-sm text-white/70">
-              Conteúdo (markdown leve suportado)
-              <textarea
-                value={form.content}
-                onChange={(event) => setForm((prev) => ({ ...prev, content: event.target.value }))}
-                className="h-48 rounded-2xl border border-white/15 bg-white/5 px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-white/30"
-                placeholder="Escreve o conteúdo do post..."
-                required
-              />
-            </label>
+                        <MarkdownEditor
+              label="Conteudo"
+              value={form.content}
+              onChange={(content) => setForm((prev) => ({ ...prev, content }))}
+              placeholder="Markdown leve suportado: **negrito**, *italico*, listas, links."
+              minRows={18}
+            />
 
             {formError && (
               <div className="rounded-xl border border-rose-400/40 bg-rose-500/20 px-4 py-2 text-sm text-rose-100">
@@ -361,3 +359,4 @@ export default function AdminPlayerInfoPage() {
     </div>
   );
 }
+
