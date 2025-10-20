@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { listOnlinePlayers, listPlayers } from "@/lib/api/players";
@@ -57,6 +57,26 @@ const Icon = {
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...p}>
       <rect x="3" y="4" width="18" height="16" rx="2" strokeWidth="2" />
       <path strokeWidth="2" strokeLinecap="round" d="M7 8h7M7 12h10M7 16h5" />
+    </svg>
+  ),
+  image: (p: any) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...p}>
+      <rect x="3" y="4" width="18" height="16" rx="2" strokeWidth="2" />
+      <circle cx="9" cy="9" r="2" strokeWidth="2" />
+      <path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="m21 15-3.5-3.5a2 2 0 0 0-2.828 0L9 18" />
+    </svg>
+  ),
+  article: (p: any) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...p}>
+      <path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M4 4h16v16H4z" />
+      <path strokeWidth="2" strokeLinecap="round" d="M8 8h8M8 12h6M8 16h4" />
+    </svg>
+  ),
+  calendar: (p: any) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...p}>
+      <rect x="3" y="4" width="18" height="18" rx="2" strokeWidth="2" />
+      <path strokeWidth="2" strokeLinecap="round" d="M16 2v4M8 2v4M3 10h18" />
+      <path strokeWidth="2" strokeLinecap="round" d="m9 16 2 2 4-4" />
     </svg>
   ),
   book: (p: any) => (
@@ -279,10 +299,14 @@ const SECTION_ACCENT: Record<AdminNavSectionId, { pill: string; glow: string; bo
 const ACL: Record<string, string[] | "staff"> = {
   "/admin": "staff",
   "/admin/players": ["admin.access", "users.manage"],
+  "/admin/users": ["admin.access", "users.manage"],
   "/admin/candidaturas": ["admin.access", "applications.manage"],
   "/admin/txadmin": ["admin.access", "logs.view", "resources.manage"],
   "/admin/logs": ["admin.access", "logs.view"],
   "/admin/imagens": ["admin.access", "resources.manage"],
+  "/admin/news": ["admin.access", "resources.manage"],
+  "/admin/player-info": ["admin.access", "resources.manage"],
+  "/admin/events": ["admin.access", "resources.manage"],
   "/admin/resources": ["admin.access", "resources.manage"],
   "/admin/devwork": ["admin.access", "roles.manage", "analytics.view"],
   "/admin/devleaders": ["admin.access", "roles.manage", "analytics.view"],
@@ -886,8 +910,8 @@ function OnlineDrawer({
                   <p className="font-semibold">{player.name}</p>
                   <span className="text-xs text-white/50">Ping: {player.ping ?? "-"} ms</span>
                 </div>
-                <p className="mt-1 text-xs text-white/45">CitizenID: {player.citizenid ?? "—"}</p>
-                <p className="text-xs text-white/45">Licenca: {player.license ?? "—"}</p>
+                <p className="mt-1 text-xs text-white/45">CitizenID: {player.citizenid ?? "�"}</p>
+                <p className="text-xs text-white/45">Licenca: {player.license ?? "�"}</p>
               </button>
             ))}
           </div>
@@ -965,15 +989,19 @@ useEffect(() => {
     const base: AdminNavItem[] = [
       { to: "/admin", label: "Dashboard", icon: Icon.dashboard, exact: true, need: "staff", section: "overview" },
       { to: "/admin/players", label: "Gestao de Jogadores", icon: Icon.users, need: ACL["/admin/players"] as string[], section: "people" },
+      { to: "/admin/users", label: "Utilizadores", icon: Icon.account, need: ACL["/admin/users"] as string[], section: "people" },
       { to: "/admin/candidaturas", label: "Candidaturas", icon: Icon.form, need: ACL["/admin/candidaturas"] as string[], section: "people" },
       { to: "/admin/txadmin", label: "txAdmin", icon: Icon.key, need: ACL["/admin/txadmin"] as string[], section: "operations" },
       { to: "/admin/logs", label: "Logs", icon: Icon.activity, need: ACL["/admin/logs"] as string[], section: "operations" },
-      { to: "/admin/imagens", label: "Galeria", icon: Icon.news, need: ACL["/admin/imagens"] as string[], section: "content" },
+      { to: "/admin/imagens", label: "Galeria", icon: Icon.image, need: ACL["/admin/imagens"] as string[], section: "content" },
+      { to: "/admin/news", label: "Noticias", icon: Icon.news, need: ACL["/admin/news"] as string[], section: "content" },
+      { to: "/admin/player-info", label: "Player Info", icon: Icon.article, need: ACL["/admin/player-info"] as string[], section: "content" },
+      { to: "/admin/events", label: "Eventos", icon: Icon.calendar, need: ACL["/admin/events"] as string[], section: "content" },
       { to: "/admin/resources", label: "Recursos", icon: Icon.book, need: ACL["/admin/resources"] as string[], section: "content" },
-      { to: "/admin/roles", label: "Roles & Permissões", icon: Icon.shield, need: "staff", section: "system" },
+      { to: "/admin/roles", label: "Roles & Permiss?es", icon: Icon.shield, need: "staff", section: "system" },
       { to: "/admin/tickets", label: "Tickets", icon: Icon.ticket, need: "staff", section: "system" },
       { to: "/admin/rules", label: "Rules", icon: Icon.book, need: "staff", section: "system" },
-      { to: "/admin/punishments", label: "Punições", icon: Icon.ban, need: "staff", section: "system" },
+      { to: "/admin/punishments", label: "Puni??es", icon: Icon.ban, need: "staff", section: "system" },
       { to: "/admin/devwork", label: "Dev Work", icon: Icon.code, need: ACL["/admin/devwork"] as string[], section: "dev" },
       { to: "/admin/devleaders", label: "Dev Leaders", icon: Icon.users, need: ACL["/admin/devleaders"] as string[], section: "dev" },
     ];
@@ -1026,7 +1054,7 @@ useEffect(() => {
       },
       {
         label: "Secao ativa",
-        value: activeNavItem?.label ?? "—",
+        value: activeNavItem?.label ?? "�",
         note: activeSectionMeta?.label ?? "Navegacao",
         icon: Icon.dashboard,
       },
@@ -1347,3 +1375,4 @@ return (
   </div>
 );
 }
+

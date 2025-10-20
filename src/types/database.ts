@@ -44,6 +44,82 @@ export interface Database {
           updated_at?: string | null
         }
       }
+      applications: {
+        Row: {
+          id: string
+          email: string | null
+          status: string | null
+          discord_username: string | null
+          discord_id: string | null
+          nome: string | null
+          personagem: string | null
+          motivacao: string | null
+          user_id: string | null
+          created_at: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          id?: string
+          email?: string | null
+          status?: string | null
+          discord_username?: string | null
+          discord_id?: string | null
+          nome?: string | null
+          personagem?: string | null
+          motivacao?: string | null
+          user_id?: string | null
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          id?: string
+          email?: string | null
+          status?: string | null
+          discord_username?: string | null
+          discord_id?: string | null
+          nome?: string | null
+          personagem?: string | null
+          motivacao?: string | null
+          user_id?: string | null
+          created_at?: string | null
+          updated_at?: string | null
+        }
+      }
+      events: {
+        Row: {
+          id: string
+          title: string
+          description: string | null
+          location: string | null
+          tags: string[] | null
+          starts_at: string
+          ends_at: string | null
+          created_at: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          id?: string
+          title: string
+          description?: string | null
+          location?: string | null
+          tags?: string[] | null
+          starts_at: string
+          ends_at?: string | null
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          id?: string
+          title?: string
+          description?: string | null
+          location?: string | null
+          tags?: string[] | null
+          starts_at?: string
+          ends_at?: string | null
+          created_at?: string | null
+          updated_at?: string | null
+        }
+      }
       punishments: {
         Row: {
           id: string
@@ -80,6 +156,67 @@ export interface Database {
           category?: string
           position?: number | null
           created_at?: string | null
+        }
+      }
+      player_info_posts: {
+        Row: {
+          id: string
+          title: string
+          content: string
+          tags: string[] | null
+          published_at: string | null
+          created_at: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          id?: string
+          title: string
+          content: string
+          tags?: string[] | null
+          published_at?: string | null
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          id?: string
+          title?: string
+          content?: string
+          tags?: string[] | null
+          published_at?: string | null
+          created_at?: string | null
+          updated_at?: string | null
+        }
+      }
+      profiles: {
+        Row: {
+          id: string
+          email: string | null
+          discord_id: string | null
+          discord_username: string | null
+          discord_avatar: string | null
+          blocked: boolean | null
+          created_at: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          id: string
+          email?: string | null
+          discord_id?: string | null
+          discord_username?: string | null
+          discord_avatar?: string | null
+          blocked?: boolean | null
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          id?: string
+          email?: string | null
+          discord_id?: string | null
+          discord_username?: string | null
+          discord_avatar?: string | null
+          blocked?: boolean | null
+          created_at?: string | null
+          updated_at?: string | null
         }
       }
       permissions: {
@@ -209,6 +346,151 @@ export interface Database {
           user_id?: string
           role_id?: number
           created_at?: string
+        }
+      }
+      reports: {
+        Row: {
+          id: string
+          title: string
+          description: string | null
+          status: string | null
+          severity: string | null
+          category: string | null
+          priority: string | null
+          code: string | null
+          user_id: string | null
+          reporter_id: string | null
+          created_at: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          id?: string
+          title: string
+          description?: string | null
+          status?: string | null
+          severity?: string | null
+          category?: string | null
+          priority?: string | null
+          code?: string | null
+          user_id?: string | null
+          reporter_id?: string | null
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          id?: string
+          title?: string
+          description?: string | null
+          status?: string | null
+          severity?: string | null
+          category?: string | null
+          priority?: string | null
+          code?: string | null
+          user_id?: string | null
+          reporter_id?: string | null
+          created_at?: string | null
+          updated_at?: string | null
+        }
+      }
+      report_messages: {
+        Row: {
+          id: string
+          report_id: string
+          author: string | null
+          author_type: string | null
+          content: string | null
+          created_at: string | null
+        }
+        Insert: {
+          id?: string
+          report_id: string
+          author?: string | null
+          author_type?: string | null
+          content?: string | null
+          created_at?: string | null
+        }
+        Update: {
+          id?: string
+          report_id?: string
+          author?: string | null
+          author_type?: string | null
+          content?: string | null
+          created_at?: string | null
+        }
+      }
+      report_attachments: {
+        Row: {
+          id: string
+          report_id: string
+          file_path: string | null
+          mime_type: string | null
+          created_at: string | null
+        }
+        Insert: {
+          id?: string
+          report_id: string
+          file_path?: string | null
+          mime_type?: string | null
+          created_at?: string | null
+        }
+        Update: {
+          id?: string
+          report_id?: string
+          file_path?: string | null
+          mime_type?: string | null
+          created_at?: string | null
+        }
+      }
+      tickets: {
+        Row: {
+          id: string
+          title: string
+          content: string | null
+          user_id: string | null
+          status: string | null
+          created_at: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          id?: string
+          title: string
+          content?: string | null
+          user_id?: string | null
+          status?: string | null
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          id?: string
+          title?: string
+          content?: string | null
+          user_id?: string | null
+          status?: string | null
+          created_at?: string | null
+          updated_at?: string | null
+        }
+      }
+      ticket_messages: {
+        Row: {
+          id: string
+          ticket_id: string
+          author: string | null
+          content: string | null
+          created_at: string | null
+        }
+        Insert: {
+          id?: string
+          ticket_id: string
+          author?: string | null
+          content?: string | null
+          created_at?: string | null
+        }
+        Update: {
+          id?: string
+          ticket_id?: string
+          author?: string | null
+          content?: string | null
+          created_at?: string | null
         }
       }
     }

@@ -1,8 +1,9 @@
 // /src/pages/dashboard/RulesTab.tsx
 import React, { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Search, ArrowLeft } from "lucide-react";
+import { Search } from "lucide-react";
 import Spinner from "@/components/layout/Spinner";
+import { supabase } from "@/lib/supabase";
 
 type Post = {
   id: string;
@@ -108,6 +109,8 @@ function excerpt(s: string, n = 140) {
 export default function RulesTab() {
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<string | null>(null);
+  const [sourcePosts, setSourcePosts] = useState<Post[]>(SEED_POSTS);
+  const [loadingPosts, setLoadingPosts] = useState(false);
 
   // estados para o spinner
   const [searching, setSearching] = useState(false);
@@ -129,17 +132,61 @@ export default function RulesTab() {
     return () => clearTimeout(t);
   }, [selected]);
 
+  useEffect(() => {
+    if (selected && !sourcePosts.some((p) => p.id === selected)) {
+      setSelected(null);
+    }
+  }, [selected, sourcePosts]);
+
+  useEffect(() => {
+    let ignore = false;
+    (async () => {
+      setLoadingPosts(true);
+      try {
+        const { data, error } = await supabase
+          .from("player_info_posts")
+          .select("id,title,content,tags,published_at,created_at")
+          .order("published_at", { ascending: false, nullsLast: false })
+          .order("created_at", { ascending: false, nullsLast: false });
+
+        if (!ignore && !error && data) {
+          const mapped: Post[] = data.map((row) => ({
+            id: row.id,
+            title: row.title ?? "Sem título",
+            date: row.published_at ?? row.created_at ?? new Date().toISOString(),
+            tags: Array.isArray(row.tags)
+              ? row.tags
+                  .map((t) => (typeof t === "string" ? t.trim() : ""))
+                  .filter((t): t is string => Boolean(t))
+              : [],
+            content: row.content ?? "",
+          }));
+          setSourcePosts(mapped);
+        }
+      } catch (err) {
+        console.error("Falha a carregar posts da área de jogadores", err);
+      } finally {
+        if (!ignore) setLoadingPosts(false);
+      }
+    })();
+
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
   const posts = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return SEED_POSTS;
-    return SEED_POSTS.filter(p =>
+    const list = sourcePosts.length ? sourcePosts : SEED_POSTS;
+    if (!q) return list;
+    return list.filter((p) =>
       p.title.toLowerCase().includes(q) ||
       p.content.toLowerCase().includes(q) ||
       p.tags.some(t => t.toLowerCase().includes(q))
     );
-  }, [query]);
+  }, [query, sourcePosts]);
 
-  const active = useMemo(() => SEED_POSTS.find(p => p.id === selected) || null, [selected]);
+  const active = useMemo(() => posts.find((p) => p.id === selected) || null, [posts, selected]);
 
   return (
     <section
@@ -193,7 +240,7 @@ export default function RulesTab() {
         <div className={`transition-all ${active ? "w-[380px]" : "w-full"} flex-shrink-0`}>
           <div className="flex items-center justify-between mb-2">
             <span className="text-sm text-[#fbfbfb]/80">
-              {posts.length} post{posts.length !== 1 ? "s" : ""}
+              {loadingPosts ? "A sincronizar..." : `${posts.length} post${posts.length !== 1 ? "s" : ""}`}
             </span>
             {active && (
               <button
@@ -205,46 +252,55 @@ export default function RulesTab() {
             )}
           </div>
 
-          <ul className="divide-y divide-[#6c6c6c]">
-            {posts.map((p) => {
-              const isActive = p.id === active?.id;
-              return (
-                <li key={p.id}>
-                  <button
-                    onClick={() => setSelected(p.id)}
-                    className={`w-full text-left p-4 transition ${RING} ${
-                      isActive
-                        ? "bg-[#fbfbfb]/5 border border-[#e53e30]"
-                        : "bg-[#151515] border border-transparent hover:bg-[#fbfbfb]/5"
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <h3 className={`text-[15px] font-semibold ${isActive ? "text-[#e53e30]" : ""}`}>
-                          {p.title}
-                        </h3>
-                        <p className="text-xs text-[#fbfbfb]/70 mt-0.5">
-                          {formatDate(p.date)} • {excerpt(p.content)}
-                        </p>
-                        <div className="mt-2 flex flex-wrap gap-2">
-                          {p.tags.map((t) => (
-                            <button
-                              key={t}
-                              onClick={(e) => { e.stopPropagation(); setQuery(t); }}
-                              className="text-[11px] px-2 py-0.5 border border-[#6c6c6c] hover:bg-[#fbfbfb]/10 rounded-none"
-                              title={`Filtrar por "${t}"`}
-                            >
-                              #{t}
-                            </button>
-                          ))}
+          {posts.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-[#6c6c6c] px-4 py-10 text-center text-sm text-[#fbfbfb]/60">
+              Sem publicações disponíveis no momento.
+            </div>
+          ) : (
+            <ul className="divide-y divide-[#6c6c6c]">
+              {posts.map((p) => {
+                const isActive = p.id === active?.id;
+                return (
+                  <li key={p.id}>
+                    <button
+                      onClick={() => setSelected(p.id)}
+                      className={`w-full text-left p-4 transition ${RING} ${
+                        isActive
+                          ? "bg-[#fbfbfb]/5 border border-[#e53e30]"
+                          : "bg-[#151515] border border-transparent hover:bg-[#fbfbfb]/5"
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <h3 className={`text-[15px] font-semibold ${isActive ? "text-[#e53e30]" : ""}`}>
+                            {p.title}
+                          </h3>
+                          <p className="text-xs text-[#fbfbfb]/70 mt-0.5">
+                            {formatDate(p.date)} • {excerpt(p.content)}
+                          </p>
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {p.tags.map((t) => (
+                              <button
+                                key={t}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setQuery(t);
+                                }}
+                                className="text-[11px] px-2 py-0.5 border border-[#6c6c6c] hover:bg-[#fbfbfb]/10 rounded-none"
+                                title={`Filtrar por "${t}"`}
+                              >
+                                #{t}
+                              </button>
+                            ))}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
         </div>
 
         {/* DETALHE */}
