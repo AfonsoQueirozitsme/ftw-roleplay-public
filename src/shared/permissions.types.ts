@@ -50,8 +50,7 @@ export type HasAllPermissions = (userId: string, permissions: string[]) => Promi
 /**
  * Global permission map
  */
-declare global {
-  interface UserPermissions {
+export interface IUserPermissions {
     // Support permissions
     'support.read': boolean;
     'support.reply': boolean;
@@ -81,5 +80,6 @@ declare global {
     'group.ftw_admin': boolean;
     'group.ftw_management': boolean;
     'group.ftw_bugs': boolean;
-  }
 }
+
+export type UserPermissions = IUserPermissions;

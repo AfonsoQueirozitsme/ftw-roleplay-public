@@ -1,5 +1,5 @@
 // src/pages/Punishments.tsx
-import React, { useMemo, useState, useEffect } from "react";
+import React, { useMemo, useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 
@@ -106,6 +106,58 @@ const Punishments: React.FC = () => {
   const [selectedAction, setSelectedAction] = useState<"Todos" | PunishmentAction>("Todos");
   const [dbMap, setDbMap] = useState<Record<PunishmentCategory, Punishment[]> | null>(null);
 
+  // Sticky inteligente
+  const containerRef = useRef<HTMLDivElement | null>(null); // coluna esquerda (posicionamento)
+  const asideRef = useRef<HTMLDivElement | null>(null);     // sidebar
+  const boundsRef = useRef<HTMLDivElement | null>(null);    // coluna direita (limites)
+  const [asideStyle, setAsideStyle] = useState<React.CSSProperties>({});
+  const TOP_OFFSET = 112;   // ajusta à tua navbar
+  const BOTTOM_MARGIN = 24;
+
+  useEffect(() => {
+    const elContainer = containerRef.current;
+    const elAside = asideRef.current;
+    const elBounds = boundsRef.current;
+    if (!elContainer || !elAside || !elBounds) return;
+
+    const recalc = () => {
+      const boundsRect = elBounds.getBoundingClientRect();
+      const boundsTop = window.scrollY + boundsRect.top;
+      const boundsBottom = boundsTop + elBounds.offsetHeight;
+
+      const containerRect = elContainer.getBoundingClientRect();
+      const containerTopAbs = window.scrollY + containerRect.top;
+
+      const asideHeight = elAside.offsetHeight;
+      const maxY = boundsBottom - asideHeight - BOTTOM_MARGIN;
+      const clampedAbsY = Math.min(
+        Math.max(window.scrollY + TOP_OFFSET, boundsTop),
+        Math.max(boundsTop, maxY)
+      );
+
+      setAsideStyle({
+        position: "absolute",
+        top: clampedAbsY - containerTopAbs,
+        left: 0,
+        right: 0,
+      });
+    };
+
+    recalc();
+    window.addEventListener("scroll", recalc, { passive: true });
+    window.addEventListener("resize", recalc);
+    const ro = new ResizeObserver(recalc);
+    ro.observe(elBounds);
+    ro.observe(elAside);
+
+    return () => {
+      window.removeEventListener("scroll", recalc);
+      window.removeEventListener("resize", recalc);
+      ro.disconnect();
+    };
+  }, []);
+
+  // dados da BD
   useEffect(() => {
     let mounted = true;
     (async () => {
@@ -185,9 +237,13 @@ const Punishments: React.FC = () => {
           </header>
 
           <div className="grid gap-10 lg:grid-cols-[280px_1fr]">
-            {/* Sidebar */}
-            <aside className="hidden lg:block">
-              <div className="sticky top-28 space-y-6 border border-[hsl(0_0%_18%)] bg-[hsl(0_0%_12%)] p-6 rounded-none">
+            {/* Sidebar sticky sem scroll interno */}
+            <div ref={containerRef} className="relative hidden lg:block">
+              <aside
+                ref={asideRef}
+                style={asideStyle}
+                className="space-y-6 border border-[hsl(0_0%_18%)] bg-[hsl(0_0%_12%)] p-6 rounded-none"
+              >
                 {/* Pesquisa */}
                 <div>
                   <label htmlFor="punishments-search" className="text-sm font-semibold text-[hsl(0_0%_98%_/0.7)]">
@@ -215,7 +271,7 @@ const Punishments: React.FC = () => {
                       </button>
                     )}
                   </div>
-                  {normalizedSearch && (
+                  {search.trim() && (
                     <p className="mt-2 text-sm text-[hsl(0_0%_98%_/0.6)]">{totalVisible} resultado(s) após filtros.</p>
                   )}
                 </div>
@@ -289,11 +345,11 @@ const Punishments: React.FC = () => {
                     </li>
                   </ul>
                 </div>
-              </div>
-            </aside>
+              </aside>
+            </div>
 
-            {/* Content */}
-            <div className="space-y-10">
+            {/* Content (limites do sticky) */}
+            <div ref={boundsRef} className="space-y-10">
               {showEmptyState ? (
                 <div className="border border-[hsl(0_0%_18%)] bg-[hsl(0_0%_12%)] p-8 text-white/90 rounded-none">
                   <p className="text-lg font-semibold text-white">Sem resultados para os filtros atuais.</p>
