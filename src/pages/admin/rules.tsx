@@ -1,10 +1,15 @@
 ﻿import React, { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import RichTextEditor from '@/components/RichTextEditor';
+import RichTextRenderer from '@/components/RichTextRenderer';
+
+type JSONContent = any;
 
 type EditableRule = {
   id: number | string;
   title: string;
-  description: string;
+  description: string;           // texto simples
+  descriptionRich: JSONContent | null; // JSON TipTap
   order: number;
   active: boolean;
   isNew?: boolean;
@@ -13,7 +18,8 @@ type EditableRule = {
 type EditableCategory = {
   id: number | string;
   name: string;
-  description: string;
+  description: string;            // texto simples
+  descriptionRich: JSONContent | null; // JSON TipTap
   rules: EditableRule[];
   isNew?: boolean;
 };
@@ -34,14 +40,14 @@ const AdminRulesPage: React.FC = () => {
       try {
         const { data: categoriesData, error: categoriesErr } = await supabase
           .from('rule_categories')
-          .select('id,name,description')
+          .select('id,name,description,description_rich')
           .order('id', { ascending: true });
 
         if (categoriesErr) throw categoriesErr;
 
         const { data: rulesData, error: rulesErr } = await supabase
           .from('rules')
-          .select('id,category_id,title,description,order,active')
+          .select('id,category_id,title,description,description_rich,order,active')
           .order('order', { ascending: true })
           .order('id', { ascending: true });
 
@@ -56,6 +62,7 @@ const AdminRulesPage: React.FC = () => {
               id: rule.id,
               title: rule.title,
               description: rule.description ?? '',
+              descriptionRich: (rule as any).description_rich ?? null,
               order: rule.order ?? 0,
               active: rule.active ?? true,
             }));
@@ -64,6 +71,7 @@ const AdminRulesPage: React.FC = () => {
             id: category.id,
             name: category.name,
             description: category.description ?? '',
+            descriptionRich: (category as any).description_rich ?? null,
             rules: categoryRules,
           };
         });
@@ -88,7 +96,7 @@ const AdminRulesPage: React.FC = () => {
     const tempId = `new-${Date.now()}`;
     setCategories((prev) => [
       ...prev,
-      { id: tempId, name: '', description: '', rules: [], isNew: true },
+      { id: tempId, name: '', description: '', descriptionRich: null, rules: [], isNew: true },
     ]);
   };
 
@@ -100,6 +108,21 @@ const AdminRulesPage: React.FC = () => {
     setCategories((prev) =>
       prev.map((category) =>
         category.id === categoryId ? { ...category, [field]: value } : category,
+      ),
+    );
+  };
+
+  // Atualiza descrição rica da categoria (JSON + plain)
+  const updateCategoryRich = (
+    categoryId: number | string,
+    json: JSONContent,
+    plain: string,
+  ) => {
+    setCategories((prev) =>
+      prev.map((category) =>
+        category.id === categoryId
+          ? { ...category, descriptionRich: json, description: plain }
+          : category,
       ),
     );
   };
@@ -118,6 +141,7 @@ const AdminRulesPage: React.FC = () => {
                   id: tempId,
                   title: '',
                   description: '',
+                  descriptionRich: null,
                   order: category.rules.length + 1,
                   active: true,
                   isNew: true,
@@ -132,7 +156,7 @@ const AdminRulesPage: React.FC = () => {
   const updateRuleField = (
     categoryId: number | string,
     ruleId: number | string,
-    field: 'title' | 'description' | 'order' | 'active',
+    field: 'title' | 'order' | 'active',
     value: string | number | boolean,
   ) => {
     setCategories((prev) =>
@@ -157,6 +181,29 @@ const AdminRulesPage: React.FC = () => {
     );
   };
 
+  // Atualiza descrição rica da regra (JSON + plain)
+  const updateRuleRich = (
+    categoryId: number | string,
+    ruleId: number | string,
+    json: JSONContent,
+    plain: string,
+  ) => {
+    setCategories((prev) =>
+      prev.map((category) =>
+        category.id === categoryId
+          ? {
+              ...category,
+              rules: category.rules.map((rule) =>
+                rule.id === ruleId
+                  ? { ...rule, descriptionRich: json, description: plain }
+                  : rule,
+              ),
+            }
+          : category,
+      ),
+    );
+  };
+
   const saveCategory = async (category: EditableCategory) => {
     if (!category.name.trim()) {
       setError('O nome da categoria é obrigatório.');
@@ -166,9 +213,15 @@ const AdminRulesPage: React.FC = () => {
     setSavingCategoryId(category.id);
     setError(null);
     try {
-      const payload: { id?: number; name: string; description: string | null } = {
+      const payload: {
+        id?: number;
+        name: string;
+        description: string | null;
+        description_rich: JSONContent | null;
+      } = {
         name: category.name.trim(),
         description: category.description.trim() ? category.description.trim() : null,
+        description_rich: category.descriptionRich ?? null,
       };
       if (typeof category.id === 'number') {
         payload.id = category.id;
@@ -191,6 +244,7 @@ const AdminRulesPage: React.FC = () => {
                 id: data.id,
                 name: data.name,
                 description: data.description ?? '',
+                descriptionRich: (data as any).description_rich ?? null,
                 isNew: false,
               }
             : cat,
@@ -221,12 +275,14 @@ const AdminRulesPage: React.FC = () => {
         category_id: number;
         title: string;
         description: string | null;
+        description_rich: JSONContent | null;
         order: number;
         active: boolean;
       } = {
         category_id: categoryId,
         title: rule.title.trim(),
         description: rule.description.trim() ? rule.description.trim() : null,
+        description_rich: rule.descriptionRich ?? null,
         order: Number.isFinite(rule.order) ? rule.order : 0,
         active: rule.active,
       };
@@ -256,6 +312,7 @@ const AdminRulesPage: React.FC = () => {
                         id: data.id,
                         title: data.title,
                         description: data.description ?? '',
+                        descriptionRich: (data as any).description_rich ?? null,
                         order: data.order ?? 0,
                         active: data.active ?? true,
                         isNew: false,
@@ -371,15 +428,19 @@ const AdminRulesPage: React.FC = () => {
                       />
                     </div>
                     <div>
-                      <label className="text-xs uppercase tracking-wide text-white/50">Descrição</label>
-                      <textarea
-                        value={category.description}
-                        onChange={(event) => updateCategoryField(category.id, 'description', event.target.value)}
-                        onFocus={() => setError(null)}
-                        className="mt-1 w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-sm text-white focus:border-red-400/70 focus:outline-none"
-                        placeholder="Descrição curta (opcional)"
-                        rows={3}
+                      <label className="text-xs uppercase tracking-wide text-white/50">Descrição (rico)</label>
+                      <RichTextEditor
+                        value={category.descriptionRich}
+                        onChange={(json, plain) => updateCategoryRich(category.id, json, plain)}
+                        placeholder="Descrição curta da categoria (opcional)"
+                        className="min-h-[160px]"
                       />
+                      {/* Pré-visualização opcional */}
+                      {category.descriptionRich && (
+                        <div className="mt-2 rounded-xl border border-white/10 bg-black/40 p-3 text-sm">
+                          <RichTextRenderer value={category.descriptionRich} />
+                        </div>
+                      )}
                     </div>
                     {category.isNew && (
                       <p className="text-xs text-amber-300/80">Categoria nova — guarda para ativar a gestão de regras.</p>
@@ -452,16 +513,19 @@ const AdminRulesPage: React.FC = () => {
                               </div>
                             </div>
                             <div>
-                              <label className="text-xs uppercase tracking-wide text-white/50">Descrição</label>
-                              <textarea
-                                value={rule.description}
-                                onChange={(event) => updateRuleField(category.id, rule.id, 'description', event.target.value)}
-                                onFocus={() => setError(null)}
-                                className="mt-1 w-full rounded-xl border border-white/10 bg-black/60 px-3 py-2 text-sm text-white focus:border-red-400/70 focus:outline-none"
-                                rows={3}
-                                placeholder="Detalhes opcionais"
-                                disabled={disableRules}
+                              <label className="text-xs uppercase tracking-wide text-white/50">Descrição (rico)</label>
+                              <RichTextEditor
+                                value={rule.descriptionRich}
+                                onChange={(json, plain) => updateRuleRich(category.id, rule.id, json, plain)}
+                                placeholder="Detalhes da regra (opcional)"
+                                className="min-h-[180px]"
+                                readOnly={disableRules}
                               />
+                              {rule.descriptionRich && (
+                                <div className="mt-2 rounded-xl border border-white/10 bg-black/40 p-3 text-sm">
+                                  <RichTextRenderer value={rule.descriptionRich} />
+                                </div>
+                              )}
                             </div>
                             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                               <label className="flex items-center gap-2 text-sm text-white/70">

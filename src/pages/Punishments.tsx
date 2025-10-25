@@ -2,6 +2,7 @@
 import React, { useMemo, useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
+import RichTextRenderer from "@/components/RichTextRenderer";
 
 type PunishmentCategory = "Leves" | "Médias" | "Graves" | "Extremas";
 type PunishmentAction = "Aviso" | "Ban" | "Limpeza de inventário";
@@ -9,10 +10,12 @@ type PunishmentAction = "Aviso" | "Ban" | "Limpeza de inventário";
 type Punishment = {
   code: string;
   title: string;
-  description: string;
+  description: string;              // texto simples (para highlight/pesquisa)
+  descriptionRich?: any | null;     // JSON TipTap
   actionType: PunishmentAction;
   duration: string;
   notes?: string;
+  notesRich?: any | null;           // JSON TipTap
 };
 
 type GroupedPunishments = {
@@ -93,9 +96,11 @@ type DbRow = {
   code: string;
   title: string;
   description: string;
+  description_rich?: any | null;
   action_type: PunishmentAction;
   duration: string;
   notes?: string | null;
+  notes_rich?: any | null;
   category: PunishmentCategory;
   position: number | null;
 };
@@ -164,20 +169,23 @@ const Punishments: React.FC = () => {
       try {
         const { data, error } = await supabase
           .from("punishments")
-          .select("code,title,description,action_type,duration,notes,category,position")
+          .select("code,title,description,description_rich,action_type,duration,notes,notes_rich,category,position")
           .order("position", { ascending: true });
 
         if (error || !data || !mounted) return;
 
         const grouped: Record<PunishmentCategory, Punishment[]> = { Leves: [], Médias: [], Graves: [], Extremas: [] };
         (data as DbRow[]).forEach((row) => {
+          if (!grouped[row.category]) return;
           const p: Punishment = {
             code: row.code,
             title: row.title,
-            description: row.description,
+            description: row.description ?? "",
+            descriptionRich: row.description_rich ?? null,
             actionType: row.action_type,
             duration: row.duration,
             notes: row.notes ?? undefined,
+            notesRich: row.notes_rich ?? null,
           };
           grouped[row.category].push(p);
         });
@@ -403,12 +411,25 @@ const Punishments: React.FC = () => {
                             </div>
 
                             <h3 className="mt-4 text-xl font-semibold text-white">{highlight(item.title, search)}</h3>
-                            <p className="mt-2 flex-1 text-sm text-white/80">{highlight(item.description, search)}</p>
+
+                            <div className="mt-2 flex-1 text-sm text-white/80">
+                              {item.descriptionRich ? (
+                                <RichTextRenderer value={item.descriptionRich} />
+                              ) : (
+                                <p>{highlight(item.description, search)}</p>
+                              )}
+                            </div>
 
                             <div className="mt-4 border border-[hsl(0_0%_18%)] bg-[hsl(0_0%_12%)] px-4 py-3 text-sm text-white rounded-none">
                               <p className="font-semibold text-white">Escala sugerida</p>
                               <p>{highlight(item.duration, search)}</p>
-                              {item.notes && <p className="mt-2 text-xs text-white/70">{item.notes}</p>}
+                              {item.notesRich ? (
+                                <div className="mt-2 text-xs text-white/80">
+                                  <RichTextRenderer value={item.notesRich} />
+                                </div>
+                              ) : (
+                                item.notes && <p className="mt-2 text-xs text-white/70">{item.notes}</p>
+                              )}
                             </div>
                           </article>
                         ))}
