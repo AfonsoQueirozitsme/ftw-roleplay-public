@@ -9,14 +9,18 @@ import { supabase } from "@/lib/supabase";
 import {
   AlertTriangle,
   RefreshCcw,
-  ShieldCheck,
-  Swords,
   UserCircle2,
   Crown,
   Lock,
-  ReceiptText,
   Check,
   X,
+  Swords,
+  Wrench,
+  Gauge,
+  ReceiptText,
+  Info,
+  Package,
+  FolderOpenDot,
 } from "lucide-react";
 
 /* =========================
@@ -31,7 +35,7 @@ const CARD_BASE =
    Ações
 ========================= */
 type ActionItem = {
-  id: string;
+  id: "ck" | "reset_inventory" | "refresh_stats" | "wipe_fines";
   label: string;
   description: string;
   confirm?: string;
@@ -47,12 +51,6 @@ const ACTIONS: ActionItem[] = [
     cost: 1000,
   },
   {
-    id: "wipe_fines",
-    label: "Perdoar multas",
-    description: "Abre a lista de multas para escolher quais perdoar.",
-    // confirmação é feita no modal de multas (com custo por multa)
-  },
-  {
     id: "reset_inventory",
     label: "Limpar inventário",
     description: "Remove todo o conteúdo do inventário (inclui cofres pessoais).",
@@ -63,7 +61,11 @@ const ACTIONS: ActionItem[] = [
     id: "refresh_stats",
     label: "Recalcular stats",
     description: "Atualiza estatísticas e caches desta personagem.",
-    // sem custo
+  },
+  {
+    id: "wipe_fines",
+    label: "Perdoar multas",
+    description: "Seleciona na aba “Multas” quais queres perdoar e confirma.",
   },
 ];
 
@@ -151,20 +153,24 @@ function ModalShell({
   onClose,
   title,
   children,
+  wide = false,
 }: {
   open: boolean;
   onClose: () => void;
-  title: string;
+  title: string | React.ReactNode;
   children: React.ReactNode;
+  wide?: boolean;
 }) {
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-[80]">
       <div className="absolute inset-0 bg-black/70" onClick={onClose} />
       <div className="absolute inset-0 grid place-items-center p-4">
-        <div className="w-full max-w-xl rounded-2xl border border-white/12 bg-[#0f1013] shadow-2xl">
+        <div
+          className={`w-full ${wide ? "max-w-6xl" : "max-w-xl"} rounded-2xl border border-white/12 bg-[#0f1013] shadow-2xl`}
+        >
           <div className="flex items-center justify-between border-b border-white/10 p-4">
-            <h3 className="text-base font-semibold text-white">{title}</h3>
+            <div className="text-base font-semibold text-white">{title}</div>
             <button
               type="button"
               onClick={onClose}
@@ -174,7 +180,7 @@ function ModalShell({
               <X className="w-5 h-5" />
             </button>
           </div>
-          <div className="p-4">{children}</div>
+          <div className="p-0">{children}</div>
         </div>
       </div>
     </div>
@@ -220,22 +226,16 @@ function ConfirmBar({
 }
 
 /* =========================
-   Card de personagem
+   Cartão de personagem (apenas Selecionar)
 ========================= */
 function CharacterCardCompact({
   item,
   active,
   onSelect,
-  onAction,
-  onOpenFines,
-  busyAction,
 }: {
   item: CharacterRecord;
   active: boolean;
   onSelect: (c: CharacterRecord) => void;
-  onAction: (action: ActionItem, c: CharacterRecord) => void;
-  onOpenFines: (c: CharacterRecord) => void;
-  busyAction: string | null;
 }) {
   return (
     <div
@@ -296,7 +296,6 @@ function CharacterCardCompact({
           <span className="text-white/50">Criada em</span>
           <span className="text-white/90 truncate">{formatDate(item.created_at as string)}</span>
         </div>
-        {/* IDs úteis (mascarados) se existirem no objeto */}
         {(item as any)?.license && (
           <div className="flex justify-between gap-3">
             <span className="text-white/50">License</span>
@@ -311,57 +310,16 @@ function CharacterCardCompact({
         )}
       </div>
 
-      {/* Ações */}
-      <div className="grid grid-cols-2 gap-2">
-        <button
-          type="button"
-          onClick={() => onSelect(item)}
-          className={`w-full inline-flex items-center justify-center gap-2 border border-white/12 px-3 py-2 text-xs text-white/90 hover:border-white/30 ${RING}`}
-          aria-pressed={active}
-        >
-          <UserCircle2 className="w-4 h-4" />
-          Selecionar
-        </button>
-
-        <button
-          type="button"
-          onClick={() => onAction({ id: "refresh_stats", label: "Recalcular stats", description: "" }, item)}
-          className={`w-full inline-flex items-center justify-center gap-2 border border-white/12 px-3 py-2 text-xs text-white/90 hover:border-white/30 ${RING}`}
-          disabled={busyAction === "refresh_stats"}
-        >
-          {busyAction === "refresh_stats" ? <UltraSpinner size={16} /> : <RefreshCcw className="w-4 h-4" />}
-          Refrescar
-        </button>
-
-        <button
-          type="button"
-          onClick={() => onOpenFines(item)}
-          className={`col-span-1 inline-flex items-center justify-center gap-2 border border-white/12 px-3 py-2 text-xs text-white/90 hover:border-white/30 ${RING}`}
-        >
-          <ReceiptText className="w-4 h-4" />
-          Multas
-        </button>
-
-        <button
-          type="button"
-          onClick={() => onAction(ACTIONS.find((a) => a.id === "ck")!, item)}
-          className={`col-span-1 inline-flex items-center justify-center gap-2 bg-[#e53e30] text-[#151515] px-3 py-2 text-xs font-semibold uppercase tracking-[0.16em] ${RING}`}
-          disabled={busyAction === "ck"}
-        >
-          {busyAction === "ck" ? <UltraSpinner size={16} /> : <Swords className="w-4 h-4" />}
-          CK
-        </button>
-
-        <button
-          type="button"
-          onClick={() => onAction(ACTIONS.find((a) => a.id === "reset_inventory")!, item)}
-          className={`col-span-2 inline-flex items-center justify-center gap-2 border border-white/12 px-3 py-2 text-xs text-white/90 hover:border-white/30 ${RING}`}
-          disabled={busyAction === "reset_inventory"}
-        >
-          {busyAction === "reset_inventory" ? <UltraSpinner size={16} /> : <Lock className="w-4 h-4" />}
-          Limpar inventário
-        </button>
-      </div>
+      {/* Único botão */}
+      <button
+        type="button"
+        onClick={() => onSelect(item)}
+        className={`w-full inline-flex items-center justify-center gap-2 border border-white/12 px-3 py-2 text-xs text-white/90 hover:border-white/30 rounded-lg ${RING}`}
+        aria-pressed={active}
+      >
+        <UserCircle2 className="w-4 h-4" />
+        Selecionar
+      </button>
     </div>
   );
 }
@@ -391,137 +349,310 @@ function VipSlotCard({ index, onBuy }: { index: number; onBuy: () => void }) {
 }
 
 /* =========================
-   Modais de ações
+   Modal grande com tabs + barra lateral de ações
 ========================= */
-function ConfirmActionModal({
-  open,
-  onClose,
-  onConfirm,
-  action,
-  target,
-}: {
-  open: boolean;
-  onClose: () => void;
-  onConfirm: () => void;
-  action: ActionItem;
-  target?: CharacterRecord | null;
-}) {
-  return (
-    <ModalShell open={open} onClose={onClose} title={`Confirmar: ${action.label}`}>
-      <div className="space-y-3 text-sm text-white/80">
-        <p className="text-white/70">{action.description}</p>
-        {target && (
-          <p>
-            Personagem: <span className="font-semibold text-white">{target.name}</span>
-          </p>
-        )}
-        {typeof action.cost === "number" && (
-          <div className="rounded-lg border border-white/10 bg-white/5 p-3">
-            <div className="flex items-center justify-between text-white/80">
-              <span>Custo da operação</span>
-              <span className="font-semibold tabular-nums">{formatMoney(action.cost)}</span>
-            </div>
-          </div>
-        )}
-      </div>
-      <ConfirmBar onCancel={onClose} onConfirm={onConfirm} />
-    </ModalShell>
-  );
-}
+type TabKey = "geral" | "faturas" | "inventario" | "multas";
 
-function FinesModal({
+function DetailsModal({
   open,
   onClose,
-  onConfirmWipe,
-  loading,
+  character,
+  onRunAction,
+  loadFines,
   fines,
-  selectedIds,
-  toggleSelect,
+  finesLoading,
+  selectedFineIds,
+  toggleFine,
 }: {
   open: boolean;
   onClose: () => void;
-  onConfirmWipe: (selected: FineRow[]) => void;
-  loading: boolean;
+  character: CharacterRecord;
+  onRunAction: (action: ActionItem) => void;
+  loadFines: (characterId: string) => Promise<void>;
   fines: FineRow[];
-  selectedIds: Set<string>;
-  toggleSelect: (id: string) => void;
+  finesLoading: boolean;
+  selectedFineIds: Set<string>;
+  toggleFine: (id: string) => void;
 }) {
-  const selected = fines.filter((f) => selectedIds.has(f.id));
-  const total = selected.reduce((acc, f) => acc + (Number(f.amount) || 0), 0);
+  const [tab, setTab] = useState<TabKey>("geral");
+
+  useEffect(() => {
+    if (!open) return;
+    if (tab === "multas") {
+      void loadFines(character.id);
+    }
+  }, [open, tab, character.id, loadFines]);
+
+  const selectedFines = fines.filter((f) => selectedFineIds.has(f.id));
+  const totalSelected = selectedFines.reduce((acc, f) => acc + (Number(f.amount) || 0), 0);
+
   return (
-    <ModalShell open={open} onClose={onClose} title="Multas da personagem">
-      {loading ? (
-        <div className="py-10 grid place-items-center">
-          <UltraSpinner size={48} label="A carregar multas..." />
+    <ModalShell
+      open={open}
+      onClose={onClose}
+      wide
+      title={
+        <div className="flex items-center gap-3">
+          <img
+            src={(character.avatar_url as string | undefined) ?? FALLBACK_AVATAR}
+            className="w-8 h-8 rounded-full border border-white/10 object-cover"
+            onError={(e) => ((e.target as HTMLImageElement).src = FALLBACK_AVATAR)}
+          />
+          <div className="flex flex-col">
+            <span className="font-semibold">{character.name}</span>
+            <span className="text-xs text-white/60">
+              {character.job ? `${character.job}${character.job_grade ? ` — ${character.job_grade}` : ""}` : "Sem emprego"}
+            </span>
+          </div>
         </div>
-      ) : fines.length === 0 ? (
-        <div className="p-3 text-sm text-white/70">Sem multas por agora.</div>
-      ) : (
-        <div className="space-y-3">
-          <div className="max-h-[50vh] overflow-auto rounded-lg border border-white/10">
-            <table className="w-full text-sm">
-              <thead className="bg-white/5">
-                <tr className="text-left text-white/70">
-                  <th className="px-3 py-2 w-10"></th>
-                  <th className="px-3 py-2">Motivo</th>
-                  <th className="px-3 py-2">Código</th>
-                  <th className="px-3 py-2 text-right">Valor</th>
-                  <th className="px-3 py-2">Data</th>
-                  <th className="px-3 py-2">Estado</th>
-                </tr>
-              </thead>
-              <tbody>
-                {fines.map((f) => (
-                  <tr key={f.id} className="border-t border-white/10">
-                    <td className="px-3 py-2">
-                      <input
-                        type="checkbox"
-                        checked={selectedIds.has(f.id)}
-                        onChange={() => toggleSelect(f.id)}
-                        className="accent-[#e53e30]"
-                      />
-                    </td>
-                    <td className="px-3 py-2 text-white/90">{f.reason}</td>
-                    <td className="px-3 py-2 text-white/70">{f.code ?? "—"}</td>
-                    <td className="px-3 py-2 text-right tabular-nums">{formatMoney(f.amount)}</td>
-                    <td className="px-3 py-2 text-white/70">{formatDate(f.issued_at)}</td>
-                    <td className="px-3 py-2">
-                      <span
-                        className={`inline-flex items-center rounded px-2 py-0.5 text-xs ${
-                          f.status === "unpaid"
-                            ? "bg-[#3a1a1a] text-[#fca5a5] border border-[#7f1d1d]"
-                            : "bg-white/10 text-white/80 border border-white/10"
-                        }`}
-                      >
-                        {f.status ?? "—"}
+      }
+    >
+      <div className="flex">
+        {/* Sidebar de ações */}
+        <aside className="w-[240px] border-r border-white/10 p-4 space-y-2">
+          <div className="text-[11px] uppercase tracking-[0.2em] text-white/60 mb-2">Ações</div>
+          {ACTIONS.map((a) => {
+            const Icon =
+              a.id === "ck" ? Swords : a.id === "reset_inventory" ? Wrench : a.id === "refresh_stats" ? Gauge : ReceiptText;
+            return (
+              <button
+                key={a.id}
+                type="button"
+                onClick={() => (a.id === "wipe_fines" ? setTab("multas") : onRunAction(a))}
+                className={`w-full inline-flex items-center justify-start gap-2 border border-white/12 px-3 py-2 text-sm text-white/90 hover:border-white/30 rounded-lg ${RING}`}
+              >
+                <Icon className="w-4 h-4" />
+                <span>{a.label}</span>
+              </button>
+            );
+          })}
+
+          {/* Resumo compacto */}
+          <div className="mt-4 text-xs space-y-1 border-t border-white/10 pt-3">
+            <div className="flex justify-between">
+              <span className="text-white/60">Cash</span>
+              <span className="text-white tabular-nums">{formatMoney(character.cash as number)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-white/60">Banco</span>
+              <span className="text-white tabular-nums">{formatMoney(character.bank as number)}</span>
+            </div>
+            {(character as any)?.license && (
+              <div className="flex justify-between">
+                <span className="text-white/60">License</span>
+                <span className="text-white/90">{maskLicense((character as any).license as string)}</span>
+              </div>
+            )}
+            {(character as any)?.discordid && (
+              <div className="flex justify-between">
+                <span className="text-white/60">Discord</span>
+                <span className="text-white/90">{maskDiscordId((character as any).discordid as string)}</span>
+              </div>
+            )}
+          </div>
+        </aside>
+
+        {/* Content */}
+        <section className="flex-1">
+          {/* Tabs header */}
+          <div className="border-b border-white/10 px-4">
+            <nav className="flex gap-1">
+              {([
+                { key: "geral", label: "Geral", Icon: Info },
+                { key: "faturas", label: "Faturas", Icon: FolderOpenDot },
+                { key: "inventario", label: "Inventário", Icon: Package },
+                { key: "multas", label: "Multas", Icon: ReceiptText },
+              ] as { key: TabKey; label: string; Icon: any }[]).map(({ key, label, Icon }) => (
+                <button
+                  key={key}
+                  onClick={() => setTab(key)}
+                  className={`relative px-4 py-3 text-sm ${tab === key ? "text-white" : "text-white/60 hover:text-white/90"}`}
+                >
+                  <span className="inline-flex items-center gap-2">
+                    <Icon className="w-4 h-4" />
+                    {label}
+                  </span>
+                  {tab === key && (
+                    <span className="absolute left-0 right-0 -bottom-px h-[2px] bg-[#e53e30] rounded-full" />
+                  )}
+                </button>
+              ))}
+            </nav>
+          </div>
+
+          {/* Tab content */}
+          <div className="p-4">
+            {tab === "geral" && (
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="rounded-xl border border-white/10 p-4 bg-white/5">
+                  <div className="text-xs uppercase tracking-[0.16em] text-white/60 mb-2">Identificação</div>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-white/60">Nome</span>
+                      <span className="text-white/90">{character.name}</span>
+                    </div>
+                    {(character as any)?.citizenid && (
+                      <div className="flex justify-between">
+                        <span className="text-white/60">CitizenID</span>
+                        <span className="text-white/90">{(character as any).citizenid}</span>
+                      </div>
+                    )}
+                    {(character as any)?.license && (
+                      <div className="flex justify-between">
+                        <span className="text-white/60">License</span>
+                        <span className="text-white/90">{maskLicense((character as any).license as string)}</span>
+                      </div>
+                    )}
+                    {(character as any)?.discordid && (
+                      <div className="flex justify-between">
+                        <span className="text-white/60">Discord</span>
+                        <span className="text-white/90">{maskDiscordId((character as any).discordid as string)}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-white/10 p-4 bg-white/5">
+                  <div className="text-xs uppercase tracking-[0.16em] text-white/60 mb-2">Estado</div>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-white/60">Job</span>
+                      <span className="text-white/90">
+                        {character.job ? `${character.job}${character.job_grade ? ` — ${character.job_grade}` : ""}` : "—"}
                       </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-white/60">Gang</span>
+                      <span className="text-white/90">{character.gang ?? "—"}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-white/60">Última atividade</span>
+                      <span className="text-white/90">{formatDate(character.last_played as string)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-white/60">Criada em</span>
+                      <span className="text-white/90">{formatDate(character.created_at as string)}</span>
+                    </div>
+                  </div>
+                </div>
 
-          {/* Resumo */}
-          <div className="rounded-lg border border-white/10 bg-white/5 p-3">
-            <div className="flex items-center justify-between">
-              <span className="text-white/80">Selecionadas</span>
-              <span className="text-white/90 font-semibold">{selected.length}</span>
-            </div>
-            <div className="mt-2 flex items-center justify-between">
-              <span className="text-white/80">Total a perdoar</span>
-              <span className="text-white font-semibold tabular-nums">{formatMoney(total)}</span>
-            </div>
-          </div>
-        </div>
-      )}
+                <div className="rounded-xl border border-white/10 p-4 bg-white/5 md:col-span-2">
+                  <div className="text-xs uppercase tracking-[0.16em] text-white/60 mb-2">Financeiro</div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="rounded-lg border border-white/10 bg-[#0f1013] p-3">
+                      <span className="block text-[10px] uppercase tracking-[0.16em] text-white/50">Cash</span>
+                      <span className="text-base font-semibold text-white tabular-nums">{formatMoney(character.cash as number)}</span>
+                    </div>
+                    <div className="rounded-lg border border-white/10 bg-[#0f1013] p-3">
+                      <span className="block text-[10px] uppercase tracking-[0.16em] text-white/50">Banco</span>
+                      <span className="text-base font-semibold text-white tabular-nums">{formatMoney(character.bank as number)}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
 
-      <ConfirmBar
-        onCancel={onClose}
-        onConfirm={() => onConfirmWipe(selected)}
-        confirmLabel="Perdoar selecionadas"
-        disabled={loading || selected.length === 0}
-      />
+            {tab === "faturas" && (
+              <div className="rounded-xl border border-white/10 p-6 bg-white/5 text-white/80">
+                <p className="text-sm">
+                  Aqui podes listar as faturas/recibos desta personagem (integrar com a tua função quando estiver pronta).
+                </p>
+              </div>
+            )}
+
+            {tab === "inventario" && (
+              <div className="rounded-xl border border-white/10 p-6 bg-white/5 text-white/80">
+                <p className="text-sm">
+                  Mostra o inventário e cofres. Assim que houver endpoint, mapeia aqui (podes também paginar/filtrar).
+                </p>
+              </div>
+            )}
+
+            {tab === "multas" && (
+              <div className="space-y-4">
+                {finesLoading ? (
+                  <div className="py-10 grid place-items-center">
+                    <UltraSpinner size={48} label="A carregar multas..." />
+                  </div>
+                ) : fines.length === 0 ? (
+                  <div className="p-3 text-sm text-white/70 rounded-xl border border-white/10 bg-white/5">
+                    Sem multas por agora.
+                  </div>
+                ) : (
+                  <>
+                    <div className="max-h-[50vh] overflow-auto rounded-xl border border-white/10 bg-[#0f1013]">
+                      <table className="w-full text-sm">
+                        <thead className="bg-white/5">
+                          <tr className="text-left text-white/70">
+                            <th className="px-3 py-2 w-10"></th>
+                            <th className="px-3 py-2">Motivo</th>
+                            <th className="px-3 py-2">Código</th>
+                            <th className="px-3 py-2 text-right">Valor</th>
+                            <th className="px-3 py-2">Data</th>
+                            <th className="px-3 py-2">Estado</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {fines.map((f) => (
+                            <tr key={f.id} className="border-t border-white/10">
+                              <td className="px-3 py-2">
+                                <input
+                                  type="checkbox"
+                                  checked={selectedFineIds.has(f.id)}
+                                  onChange={() => toggleFine(f.id)}
+                                  className="accent-[#e53e30]"
+                                />
+                              </td>
+                              <td className="px-3 py-2 text-white/90">{f.reason}</td>
+                              <td className="px-3 py-2 text-white/70">{f.code ?? "—"}</td>
+                              <td className="px-3 py-2 text-right tabular-nums">{formatMoney(f.amount)}</td>
+                              <td className="px-3 py-2 text-white/70">{formatDate(f.issued_at)}</td>
+                              <td className="px-3 py-2">
+                                <span
+                                  className={`inline-flex items-center rounded px-2 py-0.5 text-xs ${
+                                    f.status === "unpaid"
+                                      ? "bg-[#3a1a1a] text-[#fca5a5] border border-[#7f1d1d]"
+                                      : "bg-white/10 text-white/80 border border-white/10"
+                                  }`}
+                                >
+                                  {f.status ?? "—"}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* Resumo e ação */}
+                    <div className="rounded-lg border border-white/10 bg-white/5 p-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-white/80">Selecionadas</span>
+                        <span className="text-white/90 font-semibold">{selectedFines.length}</span>
+                      </div>
+                      <div className="mt-2 flex items-center justify-between">
+                        <span className="text-white/80">Total a perdoar</span>
+                        <span className="text-white font-semibold tabular-nums">{formatMoney(totalSelected)}</span>
+                      </div>
+                      <div className="mt-3 flex justify-end">
+                        <button
+                          type="button"
+                          disabled={selectedFines.length === 0}
+                          onClick={() => onRunAction({ id: "wipe_fines", label: "Perdoar multas", description: "" })}
+                          className={`inline-flex items-center gap-2 bg-[#e53e30] text-[#151515] px-4 py-2 text-sm font-semibold rounded-md ${RING} disabled:opacity-50`}
+                        >
+                          <Check className="w-4 h-4" />
+                          Perdoar selecionadas
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+        </section>
+      </div>
     </ModalShell>
   );
 }
@@ -540,14 +671,16 @@ export default function CharactersTab() {
   const [actionMessage, setActionMessage] = useState<string | null>(null);
 
   // multas
-  const [finesOpen, setFinesOpen] = useState(false);
-  const [finesLoading, setFinesLoading] = useState(false);
   const [fines, setFines] = useState<FineRow[]>([]);
+  const [finesLoading, setFinesLoading] = useState(false);
   const [selectedFineIds, setSelectedFineIds] = useState<Set<string>>(new Set());
 
   // modal genérico de confirmação
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmAction, setConfirmAction] = useState<ActionItem | null>(null);
+
+  // modal detalhes
+  const [detailsOpen, setDetailsOpen] = useState(false);
 
   const visibleCharacters = useMemo(() => characters.slice(0, 4), [characters]);
 
@@ -602,7 +735,6 @@ export default function CharactersTab() {
   }, [activeDiscordId, fetchCharacters]);
 
   /* ========= Multas ========= */
-
   const toggleFine = useCallback((id: string) => {
     setSelectedFineIds((prev) => {
       const next = new Set(prev);
@@ -629,7 +761,6 @@ export default function CharactersTab() {
       setFinesLoading(true);
       setSelectedFineIds(new Set());
       setFines([]);
-      setError(null);
       try {
         // 👉 Ajusta esta rota se a tua Edge Function usar outro caminho/parâmetros
         const base = import.meta.env.VITE_SUPABASE_URL as string;
@@ -650,8 +781,8 @@ export default function CharactersTab() {
           }))
         );
       } catch (e) {
-        // se a função ainda não existir, mantém sem multas
         console.warn("Falha a obter multas:", e);
+        setFines([]);
       } finally {
         setFinesLoading(false);
       }
@@ -659,75 +790,66 @@ export default function CharactersTab() {
     []
   );
 
-  const openFinesModal = useCallback(
-    async (c: CharacterRecord) => {
-      setSelected(c);
-      setFinesOpen(true);
-      await loadFines(c.id);
-    },
-    [loadFines]
-  );
+  /* ========= Execução de ações ========= */
 
-  const confirmWipeSelectedFines = useCallback(
-    async (selectedFines: FineRow[]) => {
+  // Ação chamada via barra lateral OU botão de perdoar na aba Multas
+  const runAction = useCallback(
+    async (action: ActionItem) => {
       if (!selected) return;
-      const total = selectedFines.reduce((acc, f) => acc + (Number(f.amount) || 0), 0);
-      // Confirmação final (extra segurança)
-      const ok = window.confirm(
-        `Vais perdoar ${selectedFines.length} multa(s) no total de ${formatMoney(total)}. Confirmas?`
-      );
-      if (!ok) return;
 
-      setActionLoading("wipe_fines");
-      setActionMessage(null);
-      try {
-        const res = await performCharacterAction(selected.id, "wipe_fines", {
-          fineIds: selectedFines.map((f) => f.id),
-          totalAmount: total,
-        });
-        setActionMessage(res.message ?? "Multas perdoadas com sucesso.");
-        setFinesOpen(false);
-        // refresca personagem (se precisares de refletir saldo/estado, podes voltar a carregar)
-        if (activeDiscordId) await fetchCharacters(activeDiscordId);
-      } catch (err) {
-        setActionMessage(err instanceof Error ? err.message : "Não foi possível perdoar as multas.");
-      } finally {
-        setActionLoading(null);
-      }
-    },
-    [selected, activeDiscordId, fetchCharacters]
-  );
-
-  /* ========= Ações genéricas ========= */
-
-  const handleAction = useCallback(
-    async (action: ActionItem, c: CharacterRecord) => {
+      // Se for wipe_fines vindo da aba Multas, reunimos a seleção e confirmamos aqui
       if (action.id === "wipe_fines") {
-        // abre o modal das multas (confirmação personalizada acontece lá)
-        await openFinesModal(c);
+        const chosen = fines.filter((f) => selectedFineIds.has(f.id));
+        if (chosen.length === 0) return;
+
+        const total = chosen.reduce((acc, f) => acc + (Number(f.amount) || 0), 0);
+        const ok = window.confirm(
+          `Vais perdoar ${chosen.length} multa(s) no total de ${formatMoney(total)}. Confirmas?`
+        );
+        if (!ok) return;
+
+        setActionLoading("wipe_fines");
+        setActionMessage(null);
+        try {
+          const res = await performCharacterAction(selected.id, "wipe_fines", {
+            fineIds: chosen.map((f) => f.id),
+            totalAmount: total,
+          });
+          setActionMessage(res.message ?? "Multas perdoadas com sucesso.");
+          // refrescar dados se necessário
+          if (activeDiscordId) await fetchCharacters(activeDiscordId);
+          // limpar seleção
+          setSelectedFineIds(new Set());
+          await loadFines(selected.id);
+        } catch (err) {
+          setActionMessage(err instanceof Error ? err.message : "Não foi possível perdoar as multas.");
+        } finally {
+          setActionLoading(null);
+        }
         return;
       }
 
-      // para ações com custo/confirmação, usa modal próprio; senão, dispara logo
+      // Para ações com confirmação/custo, abrimos modal de confirmação
       if (action.confirm || typeof action.cost === "number") {
-        setSelected(c);
         setConfirmAction(action);
         setConfirmOpen(true);
         return;
       }
 
+      // Ações simples (ex.: refresh_stats sem custo/confirm)
       setActionLoading(action.id);
       setActionMessage(null);
       try {
-        const response = await performCharacterAction(c.id, action.id);
+        const response = await performCharacterAction(selected.id, action.id);
         setActionMessage(response.message ?? "Ação enviada para o backend.");
+        if (activeDiscordId) await fetchCharacters(activeDiscordId);
       } catch (err) {
         setActionMessage(err instanceof Error ? err.message : "Não foi possível executar a ação.");
       } finally {
         setActionLoading(null);
       }
     },
-    [openFinesModal]
+    [selected, selectedFineIds, fines, activeDiscordId, fetchCharacters, loadFines]
   );
 
   const confirmGenericActionNow = useCallback(async () => {
@@ -773,7 +895,7 @@ export default function CharactersTab() {
         </p>
       </header>
 
-      {/* Barra de utilidade */}
+      {/* Barra de utilidade mínima */}
       <section className="border border-white/10 bg-[#0f1013] p-5 rounded-xl space-y-3">
         <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
           {!activeDiscordId && autoFilled && (
@@ -827,10 +949,10 @@ export default function CharactersTab() {
                 key={slot.id}
                 item={slot}
                 active={slot.id === selected?.id}
-                onSelect={setSelected}
-                onAction={handleAction}
-                onOpenFines={openFinesModal}
-                busyAction={actionLoading}
+                onSelect={(c) => {
+                  setSelected(c);
+                  setDetailsOpen(true);
+                }}
               />
             ) : (
               <VipSlotCard key={`vip-${idx}`} index={idx} onBuy={openVip} />
@@ -846,26 +968,53 @@ export default function CharactersTab() {
         </div>
       )}
 
-      {/* Modal de Multas */}
-      <FinesModal
-        open={finesOpen}
-        onClose={() => setFinesOpen(false)}
-        onConfirmWipe={confirmWipeSelectedFines}
-        loading={finesLoading}
-        fines={fines}
-        selectedIds={selectedFineIds}
-        toggleSelect={toggleFine}
-      />
+      {/* Modal Detalhes (abas + ações) */}
+      {selected && (
+        <DetailsModal
+          open={detailsOpen}
+          onClose={() => setDetailsOpen(false)}
+          character={selected}
+          onRunAction={runAction}
+          loadFines={loadFines}
+          fines={fines}
+          finesLoading={finesLoading}
+          selectedFineIds={selectedFineIds}
+          toggleFine={toggleFine}
+        />
+      )}
 
-      {/* Modal genérico de confirmação */}
-      {confirmAction && (
-        <ConfirmActionModal
+      {/* Modal genérico de confirmação (CK / Limpar inventário / Recalcular stats se quiseres confirmar) */}
+      {confirmAction && selected && (
+        <ModalShell
           open={confirmOpen}
           onClose={() => setConfirmOpen(false)}
-          onConfirm={confirmGenericActionNow}
-          action={confirmAction}
-          target={selected}
-        />
+          title={`Confirmar: ${confirmAction.label}`}
+        >
+          <div className="p-4">
+            <div className="space-y-3 text-sm text-white/80">
+              <p className="text-white/70">{confirmAction.description}</p>
+              <p>
+                Personagem: <span className="font-semibold text-white">{selected.name}</span>
+              </p>
+              {typeof confirmAction.cost === "number" && (
+                <div className="rounded-lg border border-white/10 bg-white/5 p-3">
+                  <div className="flex items-center justify-between text-white/80">
+                    <span>Custo da operação</span>
+                    <span className="font-semibold tabular-nums">{formatMoney(confirmAction.cost)}</span>
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="px-4">
+              <ConfirmBar
+                onCancel={() => setConfirmOpen(false)}
+                onConfirm={confirmGenericActionNow}
+                disabled={actionLoading === confirmAction.id}
+                loading={actionLoading === confirmAction.id}
+              />
+            </div>
+          </div>
+        </ModalShell>
       )}
     </div>
   );
