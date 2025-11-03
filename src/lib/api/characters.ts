@@ -1,5 +1,6 @@
 // /src/lib/api/characters.ts
 // Agora usa Supabase Edge Functions (igual a players.ts) em vez de um serviço MySQL externo.
+// Mantém a API de /players e filtra localmente pelo campo players.discordid.
 
 import { supabase } from "@/lib/supabase";
 
@@ -49,6 +50,13 @@ async function fetchJson<T>(url: string, init: FetchInit = {}): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+/** Normaliza formatos comuns de Discord ID: "discord:123", "<@123>", "<@!123>" → "123" */
+function normDiscordId(x: string | null | undefined): string | null {
+  if (!x) return null;
+  const s = String(x).trim().toLowerCase();
+  return s.replace(/^discord:/, "").replace(/^<@!?/, "").replace(/>$/, "");
+}
+
 /* =========================
    Tipos (compatíveis com o módulo antigo)
 ========================= */
@@ -84,7 +92,7 @@ type PlayerRow = {
   gang: string | null;
   lastUpdated: string | null;
   lastLoggedOut: string | null;
-  // campos adicionais que possam existir
+  discordid?: string | null; // campo usado para filtragem
   [k: string]: unknown;
 };
 
@@ -96,7 +104,7 @@ function mapPlayerToCharacter(p: PlayerRow): CharacterRecord {
     id: p.id,
     name: p.name,
     job: p.job ?? null,
-    job_grade: (p as any)?.job_grade ?? null, // se a função devolver
+    job_grade: (p as any)?.job_grade ?? null,
     gang: p.gang ?? null,
     cash: (p as any)?.cash ?? null,
     bank: (p as any)?.bank ?? null,
@@ -105,9 +113,52 @@ function mapPlayerToCharacter(p: PlayerRow): CharacterRecord {
     created_at: (p as any)?.created_at ?? null,
     updated_at: p.lastUpdated ?? (p as any)?.updated_at ?? null,
     last_played: p.lastLoggedOut ?? (p as any)?.last_played ?? null,
-    // preserva restantes campos (útil se já os usas noutros sítios)
+    // preserva restantes campos
     ...p,
   };
+}
+
+/* =========================
+   Paginação local (buscar tudo)
+========================= */
+
+/**
+ * Busca todas as páginas de /players.
+ * - Respeita { data, total } se a função expuser 'total'.
+ * - Caso não exponha 'total', para quando a página vier com menos registos do que 'limit'.
+ */
+async function fetchAllPlayers(limit = 200): Promise<PlayerRow[]> {
+  const headers = await authHeaders();
+  let page = 1;
+  const all: PlayerRow[] = [];
+  let total: number | undefined;
+
+  while (true) {
+    const qs = new URLSearchParams({
+      page: String(page),
+      limit: String(limit),
+      sort: "last_updated",
+      dir: "desc",
+    });
+
+    const url = `${FUNCTIONS_URL}/players?${qs.toString()}`;
+    const res = await fetchJson<{ data: PlayerRow[]; total?: number }>(url, {
+      headers,
+      timeoutMs: 15000,
+    });
+
+    const batch = res.data ?? [];
+    all.push(...batch);
+
+    if (res.total && total === undefined) total = res.total;
+
+    if (batch.length < limit) break; // chegou à última página
+    if (total && all.length >= total) break;
+
+    page += 1;
+  }
+
+  return all;
 }
 
 /* =========================
@@ -115,32 +166,22 @@ function mapPlayerToCharacter(p: PlayerRow): CharacterRecord {
 ========================= */
 
 /**
- * Lista personagens por Discord ID.
- * Implementa a mesma ideia do serviço antigo, mas via Edge Function /players.
- * A tua função /players deve aceitar ?discordId=... ou usar q=... para pesquisar por discord.
+ * Lista personagens por Discord ID sem alterar a API:
+ * - Vai buscar todas as páginas de /players
+ * - Filtra localmente por players.discordid
  */
 export async function listCharactersByDiscordId(discordId: string) {
-  const headers = await authHeaders();
+  const target = normDiscordId(discordId);
+  if (!target) return [];
 
-  // Preferir um parâmetro dedicado se a tua Edge Function o suportar
-  const qs = new URLSearchParams({
-    discordId, // 👉 se a tua /players suportar este filtro específico, mantém
-    page: "1",
-    limit: "50",
-    sort: "last_updated",
-    dir: "desc",
+  const players = await fetchAllPlayers(200);
+
+  const filtered = players.filter((p) => {
+    const did = normDiscordId((p as any)?.discordid);
+    return did === target;
   });
 
-  // Se a tua função não suportar discordId diretamente, troca a linha acima por:
-  // const qs = new URLSearchParams({ q: discordId, page: "1", limit: "50" });
-
-  const url = `${FUNCTIONS_URL}/players?${qs.toString()}`;
-  const payload = await fetchJson<{ data: PlayerRow[]; total?: number }>(url, {
-    headers,
-    timeoutMs: 12000,
-  });
-
-  return (payload.data ?? []).map(mapPlayerToCharacter);
+  return filtered.map(mapPlayerToCharacter);
 }
 
 /**
@@ -159,7 +200,7 @@ export async function getCharacterDetail(characterId: string) {
 
 /**
  * Executa uma ação sobre a personagem (ex.: dar dinheiro, setar job, etc.).
- * Precisa de uma Edge Function /players/:id/actions que trate do "action" e "payload".
+ * Requer uma Edge Function /players/:id/actions.
  */
 export async function performCharacterAction(
   characterId: string,
