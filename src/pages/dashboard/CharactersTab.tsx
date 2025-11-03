@@ -9,11 +9,12 @@ import { supabase } from "@/lib/supabase";
 import {
   AlertTriangle,
   ArrowLeft,
-  Database,
   RefreshCcw,
   ShieldCheck,
   Swords,
   UserCircle2,
+  Crown,
+  Lock,
 } from "lucide-react";
 
 type ActionItem = {
@@ -28,32 +29,33 @@ const ACTIONS: ActionItem[] = [
     id: "ck",
     label: "Dar CK",
     description: "Marca a personagem como CK e executa as rotinas de limpeza.",
-    confirm: "Tens a certeza que queres dar CK a esta personagem? Esta acao e irreversivel.",
+    confirm: "Tens a certeza que queres dar CK a esta personagem? Esta ação é irreversível.",
   },
   {
     id: "wipe_fines",
     label: "Perdoar multas",
-    description: "Limpa multas pendentes associadas a personagem.",
+    description: "Limpa multas pendentes associadas à personagem.",
     confirm: "Confirmas que pretendes perdoar todas as multas desta personagem?",
   },
   {
     id: "reset_inventory",
-    label: "Limpar inventario",
-    description: "Remove todo o conteudo do inventario (inclui cofres pessoais).",
-    confirm: "Esta acao limpa completamente o inventario. Continuar?",
+    label: "Limpar inventário",
+    description: "Remove todo o conteúdo do inventário (inclui cofres pessoais).",
+    confirm: "Esta ação limpa completamente o inventário. Continuar?",
   },
   {
     id: "refresh_stats",
     label: "Recalcular stats",
-    description: "Solicita ao backend um refresh de estatisticas e caches desta personagem.",
+    description: "Pede ao backend para atualizar estatísticas e caches desta personagem.",
   },
 ];
 
 const RING =
   "focus:outline-none focus:ring-2 focus:ring-[#e53e30]/70 focus:ring-offset-2 focus:ring-offset-[#151515]";
-
 const CARD_BASE =
   "relative transition border border-[#2a2a2a] bg-[#1b1b1b] hover:border-[#e53e30]/60 hover:-translate-y-0.5";
+
+const FALLBACK_AVATAR = "https://cdn.discordapp.com/embed/avatars/0.png";
 
 function extractDiscordId(user: any): string | null {
   if (!user) return null;
@@ -86,8 +88,6 @@ function prettifyDate(value?: string | null) {
   return date.toLocaleString("pt-PT");
 }
 
-const FALLBACK_AVATAR = "https://cdn.discordapp.com/embed/avatars/0.png";
-
 function CharacterCard({
   item,
   active,
@@ -101,9 +101,7 @@ function CharacterCard({
     <button
       type="button"
       onClick={() => onSelect(item)}
-      className={`${CARD_BASE} ${RING} ${
-        active ? "border-[#e53e30] bg-[#202020]" : ""
-      } rounded-none p-5 text-left w-full`}
+      className={`${CARD_BASE} ${RING} ${active ? "border-[#e53e30] bg-[#202020]" : ""} rounded-none p-5 text-left w-full`}
       aria-pressed={active}
     >
       <div className="flex items-start justify-between gap-4">
@@ -134,7 +132,7 @@ function CharacterCard({
           <dd className="text-[#fbfbfb]">{item.gang ?? "-"}</dd>
         </div>
         <div>
-          <dt className="text-[#6c6c6c] uppercase text-xs tracking-wide">Ultima atividade</dt>
+          <dt className="text-[#6c6c6c] uppercase text-xs tracking-wide">Última atividade</dt>
           <dd className="text-[#fbfbfb]">
             {item.last_played ? prettifyDate(item.last_played as string) : "-"}
           </dd>
@@ -151,6 +149,30 @@ function CharacterCard({
         </div>
       </dl>
     </button>
+  );
+}
+
+function VipSlotCard({ index, onBuy }: { index: number; onBuy: () => void }) {
+  return (
+    <div className={`${CARD_BASE} rounded-none p-5 w-full grid gap-3 place-content-between`}>
+      <div className="flex items-center gap-3">
+        <div className="w-12 h-12 rounded-full border border-[#2a2a2a] grid place-items-center">
+          <Lock className="w-5 h-5 text-[#e53e30]" />
+        </div>
+        <div>
+          <h3 className="text-lg font-semibold text-[#fbfbfb]">Slot {index + 1} bloqueado</h3>
+          <p className="text-sm text-[#a0a0a0]">Desbloqueia este slot com VIP.</p>
+        </div>
+      </div>
+      <button
+        type="button"
+        onClick={onBuy}
+        className={`mt-2 inline-flex items-center justify-center gap-2 bg-[#e53e30] text-[#151515] px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] ${RING}`}
+      >
+        <Crown className="w-4 h-4" />
+        Comprar VIP
+      </button>
+    </div>
   );
 }
 
@@ -185,7 +207,6 @@ function renderMetadata(meta: Record<string, unknown> | null | undefined) {
 }
 
 export default function CharactersTab() {
-  const [input, setInput] = useState("");
   const [activeDiscordId, setActiveDiscordId] = useState<string | null>(null);
   const [autoFilled, setAutoFilled] = useState(false);
   const [characters, setCharacters] = useState<CharacterRecord[]>([]);
@@ -197,21 +218,27 @@ export default function CharactersTab() {
 
   const visibleCharacters = useMemo(() => characters.slice(0, 4), [characters]);
 
+  const signInDiscord = useCallback(async () => {
+    await supabase.auth.signInWithOAuth({
+      provider: "discord",
+      options: { redirectTo: window.location.href },
+    });
+  }, []);
+
+  const openVip = useCallback(() => {
+    // Ajusta para a tua rota/overlay de VIP
+    // Se estiveres em NUI, troca por TriggerNuiCallback ou navegação interna
+    window.location.hash = "/vip";
+  }, []);
+
   const bootstrapDiscordId = useCallback(async () => {
     const { data } = await supabase.auth.getUser();
     const autoId = extractDiscordId(data.user as any);
-    if (autoId && !autoFilled) {
-      setInput(autoId);
+    if (autoId) {
       setActiveDiscordId(autoId);
-      setAutoFilled(true);
-    } else if (!autoId) {
-      setAutoFilled(true);
     }
-  }, [autoFilled]);
-
-  useEffect(() => {
-    void bootstrapDiscordId();
-  }, [bootstrapDiscordId]);
+    setAutoFilled(true);
+  }, []);
 
   const fetchCharacters = useCallback(
     async (discordId: string) => {
@@ -238,23 +265,12 @@ export default function CharactersTab() {
   );
 
   useEffect(() => {
-    if (activeDiscordId) {
-      void fetchCharacters(activeDiscordId);
-    }
-  }, [activeDiscordId, fetchCharacters]);
+    void bootstrapDiscordId();
+  }, [bootstrapDiscordId]);
 
-  const handleManualSubmit = useCallback(
-    (event: React.FormEvent<HTMLFormElement>) => {
-      event.preventDefault();
-      const trimmed = input.trim();
-      if (!trimmed) {
-        setError("Insere um Discord ID valido para procurarmos as personagens.");
-        return;
-      }
-      setActiveDiscordId(trimmed);
-    },
-    [input]
-  );
+  useEffect(() => {
+    if (activeDiscordId) void fetchCharacters(activeDiscordId);
+  }, [activeDiscordId, fetchCharacters]);
 
   const handleAction = useCallback(
     async (action: ActionItem) => {
@@ -264,9 +280,9 @@ export default function CharactersTab() {
       setActionMessage(null);
       try {
         const response = await performCharacterAction(selected.id, action.id);
-        setActionMessage(response.message ?? "Acao enviada para o backend.");
+        setActionMessage(response.message ?? "Ação enviada para o backend.");
       } catch (err) {
-        setActionMessage(err instanceof Error ? err.message : "Nao foi possivel executar a acao.");
+        setActionMessage(err instanceof Error ? err.message : "Não foi possível executar a ação.");
       } finally {
         setActionLoading(null);
       }
@@ -274,7 +290,12 @@ export default function CharactersTab() {
     [selected]
   );
 
-  const showEmptyState = !loading && !visibleCharacters.length;
+  const slots = useMemo<(CharacterRecord | null)[]>(
+    () => Array.from({ length: 4 }, (_, i) => visibleCharacters[i] ?? null),
+    [visibleCharacters]
+  );
+
+  const showEmptyState = !loading && characters.length === 0;
 
   return (
     <div className="space-y-8 text-[#fbfbfb]" style={{ fontFamily: "Montserrat, system-ui, sans-serif" }}>
@@ -285,52 +306,35 @@ export default function CharactersTab() {
         </div>
         <h1 className="text-3xl font-semibold">Personagens</h1>
         <p className="max-w-2xl text-sm text-[#a0a0a0] leading-relaxed">
-          Consulta e gere todas as tuas personagens diretamente a partir da base de dados do servidor. Esta lista e
-          filtrada pelo teu Discord ID. Caso nao seja detetado automaticamente, insere-o manualmente para carregarmos os
-          dados corretos.
+          Vê e gere as tuas personagens. Mostramos até 4 slots: os teus atuais e os que podes desbloquear com VIP.
         </p>
       </header>
 
-  <section className="border border-[#2a2a2a] bg-[#161616] p-6 space-y-4">
-        <form onSubmit={handleManualSubmit} className="space-y-3">
-          <label htmlFor="discordId" className="text-xs uppercase tracking-[0.2em] text-[#6c6c6c] block">
-            Discord ID
-          </label>
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <input
-              id="discordId"
-              name="discordId"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="Ex.: 123456789012345678"
-              className="w-full bg-[#101010] border border-[#2a2a2a] px-4 py-3 text-sm text-[#fbfbfb] placeholder:text-[#4f4f4f] focus:border-[#e53e30] transition"
-            />
-            <div className="flex gap-2 sm:w-auto w-full">
-              <button
-                type="submit"
-                className={`flex-1 sm:flex-none inline-flex items-center justify-center gap-2 bg-[#e53e30] text-[#151515] px-4 py-3 text-sm font-semibold uppercase tracking-[0.2em] transition hover:bg-[#f25d51] ${RING}`}
-              >
-                <Database className="w-4 h-4" />
-                <span>Pesquisar</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => activeDiscordId && fetchCharacters(activeDiscordId)}
-                className={`inline-flex items-center justify-center gap-2 px-4 py-3 border border-[#2a2a2a] text-sm uppercase tracking-[0.2em] transition hover:border-[#e53e30] ${RING}`}
-                disabled={!activeDiscordId || loading}
-              >
-                <RefreshCcw className="w-4 h-4" />
-                <span>Atualizar</span>
-              </button>
-            </div>
-          </div>
-        </form>
-        {!activeDiscordId && autoFilled && (
-          <div className="rounded-none border border-dashed border-[#2a2a2a] bg-[#141414] p-4 text-sm text-[#a0a0a0] leading-relaxed">
-            Nao foi possivel encontrar o teu Discord ID na sessao atual. Confirma se fizeste login com a conta correta
-            ou introduz manualmente o ID acima.
-          </div>
-        )}
+      {/* Barra de utilidade */}
+      <section className="border border-[#2a2a2a] bg-[#161616] p-6 space-y-4">
+        <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+          <button
+            type="button"
+            onClick={() => activeDiscordId && fetchCharacters(activeDiscordId)}
+            className={`inline-flex items-center justify-center gap-2 px-4 py-3 border border-[#2a2a2a] text-sm uppercase tracking-[0.2em] transition hover:border-[#e53e30] ${RING}`}
+            disabled={!activeDiscordId || loading}
+          >
+            <RefreshCcw className="w-4 h-4" />
+            <span>Atualizar</span>
+          </button>
+
+          {!activeDiscordId && autoFilled && (
+            <button
+              type="button"
+              onClick={signInDiscord}
+              className={`inline-flex items-center justify-center gap-2 bg-[#e53e30] text-[#151515] px-4 py-3 text-sm font-semibold uppercase tracking-[0.2em] ${RING}`}
+            >
+              <UserCircle2 className="w-4 h-4" />
+              Associar jogador (Discord)
+            </button>
+          )}
+        </div>
+
         {error && (
           <div className="flex items-start gap-3 border border-[#3a1a1a] bg-[#1f1212] px-4 py-3 text-sm text-[#fca5a5]">
             <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
@@ -344,29 +348,42 @@ export default function CharactersTab() {
           <UltraSpinner size={84} label="A carregar personagens..." />
         </div>
       ) : showEmptyState ? (
-        <div className="border border-[#2a2a2a] bg-[#161616] p-10 text-center space-y-3">
+        <div className="border border-[#2a2a2a] bg-[#161616] p-10 text-center space-y-4">
           <div className="inline-flex items-center justify-center w-16 h-16 border border-[#2a2a2a] rounded-full">
             <ArrowLeft className="w-7 h-7 text-[#6c6c6c]" />
           </div>
           <h3 className="text-lg font-medium">Nenhuma personagem encontrada</h3>
           <p className="text-sm text-[#a0a0a0] max-w-lg mx-auto">
-            Nao localizamos personagens associadas a este Discord ID. Confirma o valor inserido ou tenta novamente mais
-            tarde.
+            Liga a tua conta do Discord para associarmos o teu jogador.
           </p>
+          <button
+            type="button"
+            onClick={signInDiscord}
+            className={`inline-flex items-center justify-center gap-2 bg-[#e53e30] text-[#151515] px-5 py-3 text-sm font-semibold uppercase tracking-[0.2em] ${RING}`}
+          >
+            <UserCircle2 className="w-4 h-4" />
+            Associar jogador (Discord)
+          </button>
         </div>
       ) : (
         <div className="grid gap-6 lg:grid-cols-[1fr_minmax(340px,360px)]">
+          {/* 4 slots fixos */}
           <div className="grid gap-4 sm:grid-cols-2">
-            {visibleCharacters.map((character) => (
-              <CharacterCard
-                key={character.id}
-                item={character}
-                active={selected?.id === character.id}
-                onSelect={setSelected}
-              />
-            ))}
+            {slots.map((slot, idx) =>
+              slot ? (
+                <CharacterCard
+                  key={slot.id}
+                  item={slot}
+                  active={slot.id === selected?.id}
+                  onSelect={setSelected}
+                />
+              ) : (
+                <VipSlotCard key={`vip-${idx}`} index={idx} onBuy={openVip} />
+              )
+            )}
           </div>
 
+          {/* Painel lateral */}
           <aside className="border border-[#2a2a2a] bg-[#161616] p-6 flex flex-col gap-6">
             {selected ? (
               <>
@@ -405,11 +422,11 @@ export default function CharactersTab() {
                 <div>
                   <h3 className="text-xs uppercase tracking-[0.2em] text-[#6c6c6c] mb-2">Detalhes</h3>
                   <div className="border border-[#2a2a2a] bg-[#1b1b1b]">
-                    <DetailRow label="Discord ID" value={activeDiscordId} />
+                    <DetailRow label="Discord ID" value={activeDiscordId ?? "—"} />
                     <DetailRow label="Gang" value={selected.gang ?? "Sem gang"} />
                     <DetailRow label="Criada em" value={prettifyDate(selected.created_at as string | undefined)} />
-                    <DetailRow label="Ultima sessao" value={prettifyDate(selected.updated_at as string | undefined)} />
-                    <DetailRow label="Ultimo login" value={prettifyDate(selected.last_played as string | undefined)} />
+                    <DetailRow label="Última sessão" value={prettifyDate(selected.updated_at as string | undefined)} />
+                    <DetailRow label="Último login" value={prettifyDate(selected.last_played as string | undefined)} />
                   </div>
                   {renderMetadata((selected.metadata as Record<string, unknown>) ?? null)}
                 </div>
@@ -417,7 +434,7 @@ export default function CharactersTab() {
                 <div className="space-y-3">
                   <div className="flex items-center gap-2 text-xs uppercase tracking-[0.2em] text-[#6c6c6c]">
                     <Swords className="w-4 h-4" />
-                    <span>Acoes rapidas</span>
+                    <span>Ações rápidas</span>
                   </div>
                   <div className="grid gap-3">
                     {ACTIONS.map((action) => (
@@ -445,7 +462,7 @@ export default function CharactersTab() {
                             <UserCircle2 className="w-4 h-4 text-[#fbfbfb]" />
                           )}
                         </div>
-                        <p className="mt-1 text-xs text-[#a0a0a0] leading-relaxed">{action.description}</p>
+                        <p className="mt-1 text-xs text-[#a0a0a0]">{action.description}</p>
                       </button>
                     ))}
                   </div>
