@@ -255,13 +255,18 @@ type QuickAction = {
 };
 
 const NAV_SECTIONS: Array<{ id: AdminNavSectionId; label: string; description?: string }> = [
-  { id: "overview", label: "Dashboard", description: "Resumo da operacao" },
+  { id: "overview", label: "Dashboard", description: "Resumo da operação" },
   { id: "people", label: "Pessoas", description: "Jogadores e candidaturas" },
   { id: "content", label: "Media", description: "Galeria e recursos partilhados" },
-  { id: "operations", label: "Operacoes", description: "Monitorizacao e administracao" },
+  { id: "operations", label: "Operações", description: "Monitorização e administração" },
   { id: "dev", label: "Development", description: "Fluxo de trabalho da equipa" },
-  { id: "system", label: "Governanca", description: "Permissoes e configuracoes" },
+  { id: "system", label: "Governança", description: "Permissões e configurações" },
 ];
+
+// Mapa global estático de labels de secção (evita dependências de estado dentro de componentes filhos)
+const SECTION_LABEL_MAP = new Map<AdminNavSectionId, string>(
+  NAV_SECTIONS.map((s) => [s.id, s.label] as const)
+);
 
 const SECTION_ACCENT: Record<AdminNavSectionId, { pill: string; glow: string; border: string }> = {
   overview: {
@@ -419,6 +424,7 @@ function useAdminGuard() {
 
   return { ready, perms, loading };
 }
+
 type OnlinePlayer = {
   id: string;
   name: string;
@@ -502,15 +508,21 @@ function useOnlineCount() {
 
   return { count, loading };
 }
+
+// ========= Tipagens dos itens da palette =========
 type SearchItem =
   | { kind: "page"; label: string; to: string; icon: (props: any) => JSX.Element }
   | { kind: "player"; id: string; label: string }
   | { kind: "vehicle"; id: string; plate: string; model: string; citizenid?: string | null; license?: string | null };
 
+type PageItem = Extract<SearchItem, { kind: "page" }>;
+type PlayerItem = Extract<SearchItem, { kind: "player" }>;
+type VehicleItem = Extract<SearchItem, { kind: "vehicle" }>;
+
 function usePalette(open: boolean, query: string, pages: AdminNavItem[]) {
   const [loading, setLoading] = useState(false);
-  const [players, setPlayers] = useState<SearchItem[]>([]);
-  const [vehicles, setVehicles] = useState<SearchItem[]>([]);
+  const [players, setPlayers] = useState<PlayerItem[]>([]);
+  const [vehicles, setVehicles] = useState<VehicleItem[]>([]);
 
   useEffect(() => {
     if (!open) return;
@@ -533,11 +545,15 @@ function usePalette(open: boolean, query: string, pages: AdminNavItem[]) {
         if (!active) return;
 
         setPlayers(
-          (playerResponse.data ?? []).map((player: any) => ({ kind: "player" as const, id: player.id, label: player.name ?? player.id }))
+          (playerResponse.data ?? []).map((player: any) => ({
+            kind: "player",
+            id: player.id,
+            label: player.name ?? player.id,
+          }))
         );
         setVehicles(
           (vehicleResponse.data ?? []).map((vehicle: any) => ({
-            kind: "vehicle" as const,
+            kind: "vehicle",
             id: vehicle.id,
             plate: vehicle.plate ?? "sem-plate",
             model: vehicle.model ?? "Sem modelo",
@@ -556,15 +572,21 @@ function usePalette(open: boolean, query: string, pages: AdminNavItem[]) {
     };
   }, [open, query]);
 
-  const pageItems = useMemo(() => {
+  const pageItems: PageItem[] = useMemo(() => {
     const value = query.trim().toLowerCase();
-    const items = pages.map((item) => ({ kind: "page" as const, label: item.label, to: item.to, icon: item.icon }));
+    const items: PageItem[] = pages.map((item) => ({
+      kind: "page",
+      label: item.label,
+      to: item.to,
+      icon: item.icon,
+    }));
     if (!value) return items.slice(0, 6);
     return items.filter((item) => item.label.toLowerCase().includes(value));
   }, [pages, query]);
 
   return { loading, pageItems, players, vehicles };
 }
+
 function CommandPalette({
   open,
   onClose,
@@ -590,7 +612,7 @@ function CommandPalette({
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") onClose();
       if (event.key === "Enter") {
-        const first = pageItems[0] ?? players[0] ?? vehicles[0];
+        const first: SearchItem | undefined = pageItems[0] ?? players[0] ?? vehicles[0];
         if (first) handleSelect(first);
       }
     };
@@ -625,7 +647,7 @@ function CommandPalette({
             ref={inputRef}
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Pesquisar paginas, utilizadores ou veiculos"
+            placeholder="Pesquisar páginas, utilizadores ou veículos"
             className="w-full bg-transparent text-sm outline-none placeholder:text-white/40"
           />
           <span className="rounded-full border border-white/20 px-2 py-1 text-[10px] uppercase tracking-wider text-white/50">
@@ -635,7 +657,7 @@ function CommandPalette({
 
         <div className="grid gap-6 px-5 py-5 sm:grid-cols-2">
           <div>
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-white/40">Navegacao</p>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-white/40">Navegação</p>
             <div className="space-y-2">
               {pageItems.map((item) => (
                 <button
@@ -670,7 +692,7 @@ function CommandPalette({
             </div>
 
             <div>
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-white/40">Veiculos</p>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-white/40">Veículos</p>
               <div className="space-y-2">
                 {vehicles.map((vehicle) => (
                   <button
@@ -682,7 +704,7 @@ function CommandPalette({
                     <span className="text-xs text-white/40">{vehicle.plate}</span>
                   </button>
                 ))}
-                {!vehicles.length && <p className="text-sm text-white/50">Nenhum veiculo encontrado.</p>}
+                {!vehicles.length && <p className="text-sm text-white/50">Nenhum veículo encontrado.</p>}
               </div>
             </div>
           </div>
@@ -698,6 +720,7 @@ function CommandPalette({
     </div>
   );
 }
+
 function AvatarMenu({ email, onLogout }: { email: string | null; onLogout: () => void }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -734,7 +757,7 @@ function AvatarMenu({ email, onLogout }: { email: string | null; onLogout: () =>
           </div>
           <button
             className="flex w-full items-center gap-2 px-4 py-3 text-sm text-white/80 transition hover:bg-white/10"
-            onClick={() => alert("Area de conta em desenvolvimento")}
+            onClick={() => alert("Área de conta em desenvolvimento")}
           >
             <Icon.key className="h-4 w-4" /> Minha conta
           </button>
@@ -742,13 +765,14 @@ function AvatarMenu({ email, onLogout }: { email: string | null; onLogout: () =>
             className="flex w-full items-center gap-2 px-4 py-3 text-sm text-white/80 transition hover:bg-white/10"
             onClick={onLogout}
           >
-            <Icon.logout className="h-4 w-4" /> Terminar sessao
+            <Icon.logout className="h-4 w-4" /> Terminar sessão
           </button>
         </div>
       )}
     </div>
   );
 }
+
 function MobileSidebar({
   open,
   onClose,
@@ -808,7 +832,7 @@ function MobileSidebar({
                         </span>
                         <div className="min-w-0">
                           <p className="truncate text-sm font-semibold">{item.label}</p>
-                          <p className="truncate text-xs text-white/45">{sectionLabelMap.get(item.section)}</p>
+                          <p className="truncate text-xs text-white/45">{SECTION_LABEL_MAP.get(item.section)}</p>
                         </div>
                       </NavLink>
                     );
@@ -880,7 +904,7 @@ function OnlineDrawer({
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Filtrar por nome, citizenid ou licenca"
+              placeholder="Filtrar por nome, citizenid ou licença"
               className="w-full bg-transparent text-sm outline-none placeholder:text-white/40"
             />
             <button
@@ -908,10 +932,10 @@ function OnlineDrawer({
               >
                 <div className="flex items-center justify-between">
                   <p className="font-semibold">{player.name}</p>
-                  <span className="text-xs text-white/50">Ping: {player.ping ?? "-"} ms</span>
+                  <span className="text-xs text-white/50">Ping: {player.ping ?? "-" } ms</span>
                 </div>
-                <p className="mt-1 text-xs text-white/45">CitizenID: {player.citizenid ?? "�"}</p>
-                <p className="text-xs text-white/45">Licenca: {player.license ?? "�"}</p>
+                <p className="mt-1 text-xs text-white/45">CitizenID: {player.citizenid ?? "—"}</p>
+                <p className="text-xs text-white/45">Licença: {player.license ?? "—"}</p>
               </button>
             ))}
           </div>
@@ -920,6 +944,7 @@ function OnlineDrawer({
     </div>
   );
 }
+
 export default function AdminLayout() {
   const { ready, perms, loading } = useAdminGuard();
   const navigate = useNavigate();
@@ -933,44 +958,44 @@ export default function AdminLayout() {
   const [primaryPermission, setPrimaryPermission] = useState<string | null>(null);
   const [permissionsLoading, setPermissionsLoading] = useState(false);
 
-useEffect(() => {
-  const fetchUserAndPermissions = async () => {
-    const { data, error } = await supabase.auth.getUser();
+  useEffect(() => {
+    const fetchUserAndPermissions = async () => {
+      const { data, error } = await supabase.auth.getUser();
 
-    if (error) {
-      console.error("[admin-layout] Failed to fetch auth user", error);
-      return;
-    }
+      if (error) {
+        console.error("[admin-layout] Failed to fetch auth user", error);
+        return;
+      }
 
-    const user = data.user;
-    const userId = user?.id ?? null;
+      const user = data.user;
+      const userId = user?.id ?? null;
 
-    setEmail(user?.email ?? null);
-    console.log("[admin-layout] resolved auth user", { userId, email: user?.email });
+      setEmail(user?.email ?? null);
+      console.log("[admin-layout] resolved auth user", { userId, email: user?.email });
 
-    if (!userId) {
-      setUserPermissions([]);
-      setPrimaryPermission(null);
-      return;
-    }
+      if (!userId) {
+        setUserPermissions([]);
+        setPrimaryPermission(null);
+        return;
+      }
 
-    setPermissionsLoading(true);
-    try {
-      const permissions = await getUserPermissions(userId);
-      console.log("[admin-layout] Loaded permissions for user", { userId, permissions });
-      setUserPermissions(permissions);
-      setPrimaryPermission(permissions[0] ?? null);
-    } catch (err) {
-      console.error("[admin-layout] Failed to load permissions", err);
-      setUserPermissions([]);
-      setPrimaryPermission(null);
-    } finally {
-      setPermissionsLoading(false);
-    }
-  };
+      setPermissionsLoading(true);
+      try {
+        const permissions = await getUserPermissions(userId);
+        console.log("[admin-layout] Loaded permissions for user", { userId, permissions });
+        setUserPermissions(permissions);
+        setPrimaryPermission(permissions[0] ?? null);
+      } catch (err) {
+        console.error("[admin-layout] Failed to load permissions", err);
+        setUserPermissions([]);
+        setPrimaryPermission(null);
+      } finally {
+        setPermissionsLoading(false);
+      }
+    };
 
-  fetchUserAndPermissions();
-}, []);
+    fetchUserAndPermissions();
+  }, []);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -988,20 +1013,20 @@ useEffect(() => {
   const navItems = useMemo<AdminNavItem[]>(() => {
     const base: AdminNavItem[] = [
       { to: "/admin", label: "Dashboard", icon: Icon.dashboard, exact: true, need: "staff", section: "overview" },
-      { to: "/admin/players", label: "Gestao de Jogadores", icon: Icon.users, need: ACL["/admin/players"] as string[], section: "people" },
+      { to: "/admin/players", label: "Gestão de Jogadores", icon: Icon.users, need: ACL["/admin/players"] as string[], section: "people" },
       { to: "/admin/users", label: "Utilizadores", icon: Icon.account, need: ACL["/admin/users"] as string[], section: "people" },
       { to: "/admin/candidaturas", label: "Candidaturas", icon: Icon.form, need: ACL["/admin/candidaturas"] as string[], section: "people" },
       { to: "/admin/txadmin", label: "txAdmin", icon: Icon.key, need: ACL["/admin/txadmin"] as string[], section: "operations" },
       { to: "/admin/logs", label: "Logs", icon: Icon.activity, need: ACL["/admin/logs"] as string[], section: "operations" },
       { to: "/admin/imagens", label: "Galeria", icon: Icon.image, need: ACL["/admin/imagens"] as string[], section: "content" },
-      { to: "/admin/news", label: "Noticias", icon: Icon.news, need: ACL["/admin/news"] as string[], section: "content" },
+      { to: "/admin/news", label: "Notícias", icon: Icon.news, need: ACL["/admin/news"] as string[], section: "content" },
       { to: "/admin/player-info", label: "Player Info", icon: Icon.article, need: ACL["/admin/player-info"] as string[], section: "content" },
       { to: "/admin/events", label: "Eventos", icon: Icon.calendar, need: ACL["/admin/events"] as string[], section: "content" },
       { to: "/admin/resources", label: "Recursos", icon: Icon.book, need: ACL["/admin/resources"] as string[], section: "content" },
-      { to: "/admin/roles", label: "Roles & Permiss?es", icon: Icon.shield, need: "staff", section: "system" },
+      { to: "/admin/roles", label: "Roles & Permissões", icon: Icon.shield, need: "staff", section: "system" },
       { to: "/admin/tickets", label: "Tickets", icon: Icon.ticket, need: "staff", section: "system" },
-      { to: "/admin/rules", label: "Rules", icon: Icon.book, need: "staff", section: "system" },
-      { to: "/admin/punishments", label: "Puni??es", icon: Icon.ban, need: "staff", section: "system" },
+      { to: "/admin/rules", label: "Regras", icon: Icon.book, need: "staff", section: "system" },
+      { to: "/admin/punishments", label: "Punições", icon: Icon.ban, need: "staff", section: "system" },
       { to: "/admin/devwork", label: "Dev Work", icon: Icon.code, need: ACL["/admin/devwork"] as string[], section: "dev" },
       { to: "/admin/devleaders", label: "Dev Leaders", icon: Icon.users, need: ACL["/admin/devleaders"] as string[], section: "dev" },
     ];
@@ -1011,17 +1036,11 @@ useEffect(() => {
   }, [perms]);
 
   const groupedNav = useMemo(() => {
-  return NAV_SECTIONS.map((section) => ({
-    ...section,
-    items: navItems.filter((item) => item.section === section.id),
-  })).filter((section) => section.items.length > 0);
-}, [navItems]);
-
-  const sectionLabelMap = useMemo(() => {
-    const map = new Map<AdminNavSectionId, string>();
-    NAV_SECTIONS.forEach((section) => map.set(section.id, section.label));
-    return map;
-  }, []);
+    return NAV_SECTIONS.map((section) => ({
+      ...section,
+      items: navItems.filter((item) => item.section === section.id),
+    })).filter((section) => section.items.length > 0);
+  }, [navItems]);
 
   const activeNavItem = useMemo(() => {
     const ordered = [...navItems].sort((a, b) => b.to.length - a.to.length);
@@ -1038,8 +1057,6 @@ useEffect(() => {
     return NAV_SECTIONS.find((section) => section.id === activeNavItem.section) ?? null;
   }, [activeNavItem]);
 
-  const isDashboard = activeNavItem?.to === "/admin";
-
   const dashboardStats = useMemo(() => {
     const now = new Date();
     const dayFormatter = new Intl.DateTimeFormat("pt-PT", { day: "2-digit", month: "short" });
@@ -1053,9 +1070,9 @@ useEffect(() => {
         icon: Icon.users,
       },
       {
-        label: "Secao ativa",
-        value: activeNavItem?.label ?? "�",
-        note: activeSectionMeta?.label ?? "Navegacao",
+        label: "Secção ativa",
+        value: activeNavItem?.label ?? "—",
+        note: activeSectionMeta?.label ?? "Navegação",
         icon: Icon.dashboard,
       },
       {
@@ -1090,26 +1107,30 @@ useEffect(() => {
     return SECTION_ACCENT[sectionId as AdminNavSectionId];
   }, [activeSectionMeta]);
 
-  const quickActions = useMemo<QuickAction[]>(() => [
-    {
-      label: "Abrir pesquisa",
-      description: "Ctrl + K",
-      icon: Icon.search,
-      onTrigger: () => setPaletteOpen(true),
-    },
-    {
-      label: "Gestao de jogadores",
-      description: "Aceder rapidamente a /admin/players",
-      icon: Icon.users,
-      onTrigger: () => navigate("/admin/players"),
-    },
-    {
-      label: "Abrir Dev Work",
-      description: "Ver tarefas da equipa",
-      icon: Icon.code,
-      onTrigger: () => navigate("/admin/devwork"),
-    },
-  ], [navigate]);
+  const quickActions = useMemo<QuickAction[]>(
+    () => [
+      {
+        label: "Abrir pesquisa",
+        description: "Ctrl + K",
+        icon: Icon.search,
+        onTrigger: () => setPaletteOpen(true),
+      },
+      {
+        label: "Gestão de jogadores",
+        description: "Aceder rapidamente a /admin/players",
+        icon: Icon.users,
+        onTrigger: () => navigate("/admin/players"),
+      },
+      {
+        label: "Abrir Dev Work",
+        description: "Ver tarefas da equipa",
+        icon: Icon.code,
+        onTrigger: () => navigate("/admin/devwork"),
+      },
+    ],
+    [navigate]
+  );
+
   const onLogout = async () => {
     clearPermsCache();
     await supabase.auth.signOut();
@@ -1117,262 +1138,265 @@ useEffect(() => {
   };
 
   if (!ready || loading) {
-  return (
-    <div className="grid min-h-screen place-items-center bg-[#040406] text-white">
-      <div className="flex items-center gap-2 text-sm text-white/70">
-        <Spinner /> A validar permissoes...
+    return (
+      <div className="grid min-h-screen place-items-center bg-[#040406] text-white">
+        <div className="flex items-center gap-2 text-sm text-white/70">
+          <Spinner /> A validar permissões...
+        </div>
       </div>
-    </div>
-  );
-}
+    );
+  }
 
-return (
-  <div className="relative min-h-screen bg-[#040406] text-white">
-    <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top,_rgba(234,44,97,0.18),rgba(27,22,60,0.35),transparent_75%)]" />
-    <header className="sticky top-0 z-40 border-b border-white/10 bg-gradient-to-r from-black/95 via-black/75 to-black/90 backdrop-blur-xl">
-      <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8">
-        <div className="flex items-center gap-3">
-          <button
-            className="rounded-xl border border-white/15 bg-white/10 p-2 text-white/70 transition hover:text-white md:hidden"
-            onClick={() => setMobileOpen(true)}
-            aria-label="Abrir menu"
-          >
-            <Icon.menu className="h-5 w-5" />
-          </button>
+  return (
+    <div className="relative min-h-screen bg-[#040406] text-white">
+      <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top,_rgba(234,44,97,0.18),rgba(27,22,60,0.35),transparent_75%)]" />
+      <header className="sticky top-0 z-40 border-b border-white/10 bg-gradient-to-r from-black/95 via-black/75 to-black/90 backdrop-blur-xl">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/20 bg-white/15 text-sm font-semibold tracking-[0.3em]">
-              FTW
-            </div>
-            <div>
-              <p className="text-sm font-semibold uppercase tracking-wide">Control Center</p>
-              <p className="text-xs text-white/50">For The Win Admin</p>
+            <button
+              className="rounded-xl border border-white/15 bg-white/10 p-2 text-white/70 transition hover:text-white md:hidden"
+              onClick={() => setMobileOpen(true)}
+              aria-label="Abrir menu"
+            >
+              <Icon.menu className="h-5 w-5" />
+            </button>
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/20 bg-white/15 text-sm font-semibold tracking-[0.3em]">
+                FTW
+              </div>
+              <div>
+                <p className="text-sm font-semibold uppercase tracking-wide">Control Center</p>
+                <p className="text-xs text-white/50">For The Win Admin</p>
+              </div>
             </div>
           </div>
-        </div>
-        {activeSectionMeta && (
-          <span
-            className={cx(
-              "hidden items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium text-white/80 sm:inline-flex",
-              activeAccent.border,
-              activeAccent.glow
-            )}
-          >
-            {activeSectionMeta.label}
-          </span>
-        )}
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => setPaletteOpen(true)}
-            className="hidden items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-2 text-xs text-white/70 transition hover:text-white md:flex"
-          >
-            <Icon.search className="h-4 w-4" />
-            <span>Ctrl + K</span>
-          </button>
-          <button
-            onClick={() => setOnlineOpen(true)}
-            className="hidden items-center gap-2 rounded-full border border-emerald-400/30 bg-emerald-400/10 px-3 py-2 text-xs text-emerald-200 transition hover:border-emerald-400/50 hover:bg-emerald-400/20 sm:flex"
-          >
-            <Icon.users className="h-4 w-4" />
-            <span>{countLoading ? "..." : `${onlineCount ?? 0}`} online</span>
-          </button>
-          <AvatarMenu email={email} onLogout={onLogout} />
-        </div>
-      </div>
-    </header>
-
-    <div className="flex">
-      <aside
-        className={cx(
-          "hidden md:flex flex-col border-r border-white/10 bg-gradient-to-b from-white/[0.08] via-white/[0.02] to-transparent backdrop-blur-xl px-4 py-5 transition-all duration-300",
-          collapsed ? "w-24 items-center" : "w-80"
-        )}
-      >
-        <div className={cx("flex items-center justify-between", collapsed ? "w-full" : "")}> 
-          {!collapsed && (
-            <div className="flex flex-col gap-1">
-              <span className="text-xs uppercase tracking-[0.35em] text-white/40">Navigation</span>
-              <span className="text-sm font-semibold text-white/80">For The Win Layers</span>
-            </div>
+          {activeSectionMeta && (
+            <span
+              className={cx(
+                "hidden items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium text-white/80 sm:inline-flex",
+                activeAccent.border,
+                activeAccent.glow
+              )}
+            >
+              {activeSectionMeta.label}
+            </span>
           )}
-          <button
-            className="rounded-xl border border-white/15 bg-white/10 p-2 text-white/70 transition hover:text-white"
-            onClick={() => setCollapsed((value) => !value)}
-            aria-label="Alternar navegacao"
-          >
-            {collapsed ? <Icon.chevronRight className="h-4 w-4" /> : <Icon.chevronLeft className="h-4 w-4" />}
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setPaletteOpen(true)}
+              className="hidden items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-2 text-xs text-white/70 transition hover:text-white md:flex"
+            >
+              <Icon.search className="h-4 w-4" />
+              <span>Ctrl + K</span>
+            </button>
+            <button
+              onClick={() => setOnlineOpen(true)}
+              className="hidden items-center gap-2 rounded-full border border-emerald-400/30 bg-emerald-400/10 px-3 py-2 text-xs text-emerald-200 transition hover:border-emerald-400/50 hover:bg-emerald-400/20 sm:flex"
+            >
+              <Icon.users className="h-4 w-4" />
+              <span>{countLoading ? "..." : `${onlineCount ?? 0}`} online</span>
+            </button>
+            <AvatarMenu email={email} onLogout={onLogout} />
+          </div>
         </div>
+      </header>
 
-        <div className="mt-6 flex-1 overflow-y-auto">
-          {groupedNav.map((section) => {
-            const accent = SECTION_ACCENT[section.id];
-            return (
-              <div key={section.id} className="mb-6">
-                {!collapsed && (
-                  <div
-                    className={cx(
-                      "mb-3 flex items-center justify-between rounded-2xl border px-3 py-2 text-xs font-semibold uppercase tracking-wide text-white/70",
-                      accent.border,
-                      accent.glow
-                    )}
-                  >
-                    <span>{section.label}</span>
-                    <span className="text-white/40">{section.items.length}</span>
-                  </div>
-                )}
-                <nav className={cx("flex flex-col gap-2", collapsed && "items-center")}>
-                  {section.items.map((item) => {
-                    const isActive = item.exact
-                      ? location.pathname === item.to
-                      : location.pathname === item.to || location.pathname.startsWith(`${item.to}/`);
-                    const accentStyles = SECTION_ACCENT[item.section];
-                    const ItemIcon = item.icon;
-                    return (
-                      <NavLink
-                        key={item.to}
-                        to={item.to}
-                        end={!!item.exact}
-                        title={item.label}
-                        className={cx(
-                          "group relative flex w-full items-center gap-3 rounded-2xl border px-3 py-2 text-sm transition",
-                          collapsed ? "justify-center" : "pl-3 pr-4",
-                          isActive
-                            ? `border-white/30 bg-gradient-to-r ${accentStyles.pill} text-black shadow-[0_18px_40px_rgba(18,18,40,0.45)]`
-                            : "border-transparent text-white/70 hover:border-white/15 hover:bg-white/5 hover:text-white"
-                        )}
-                      >
-                        <span
+      <div className="flex">
+        <aside
+          className={cx(
+            "hidden md:flex flex-col border-r border-white/10 bg-gradient-to-b from-white/[0.08] via-white/[0.02] to-transparent backdrop-blur-xl px-4 py-5 transition-all duration-300",
+            collapsed ? "w-24 items-center" : "w-80"
+          )}
+        >
+          <div className={cx("flex items-center justify-between", collapsed ? "w-full" : "")}>
+            {!collapsed && (
+              <div className="flex flex-col gap-1">
+                <span className="text-xs uppercase tracking-[0.35em] text-white/40">Navigation</span>
+                <span className="text-sm font-semibold text-white/80">For The Win Layers</span>
+              </div>
+            )}
+            <button
+              className="rounded-xl border border-white/15 bg-white/10 p-2 text-white/70 transition hover:text-white"
+              onClick={() => setCollapsed((value) => !value)}
+              aria-label="Alternar navegação"
+            >
+              {collapsed ? <Icon.chevronRight className="h-4 w-4" /> : <Icon.chevronLeft className="h-4 w-4" />}
+            </button>
+          </div>
+
+          <div className="mt-6 flex-1 overflow-y-auto">
+            {groupedNav.map((section) => {
+              const accent = SECTION_ACCENT[section.id];
+              return (
+                <div key={section.id} className="mb-6">
+                  {!collapsed && (
+                    <div
+                      className={cx(
+                        "mb-3 flex items-center justify-between rounded-2xl border px-3 py-2 text-xs font-semibold uppercase tracking-wide text-white/70",
+                        accent.border,
+                        accent.glow
+                      )}
+                    >
+                      <span>{section.label}</span>
+                      <span className="text-white/40">{section.items.length}</span>
+                    </div>
+                  )}
+                  <nav className={cx("flex flex-col gap-2", collapsed && "items-center")}>
+                    {section.items.map((item) => {
+                      const isActive = item.exact
+                        ? location.pathname === item.to
+                        : location.pathname === item.to || location.pathname.startsWith(`${item.to}/`);
+                      const accentStyles = SECTION_ACCENT[item.section];
+                      const ItemIcon = item.icon;
+                      return (
+                        <NavLink
+                          key={item.to}
+                          to={item.to}
+                          end={!!item.exact}
+                          title={item.label}
                           className={cx(
-                            "flex h-9 w-9 items-center justify-center rounded-xl border bg-white/5 text-white",
-                            accentStyles.border,
-                            isActive ? "bg-white text-black" : ""
+                            "group relative flex w-full items-center gap-3 rounded-2xl border px-3 py-2 text-sm transition",
+                            collapsed ? "justify-center" : "pl-3 pr-4",
+                            isActive
+                              ? `border-white/30 bg-gradient-to-r ${accentStyles.pill} text-black shadow-[0_18px_40px_rgba(18,18,40,0.45)]`
+                              : "border-transparent text-white/70 hover:border-white/15 hover:bg-white/5 hover:text-white"
                           )}
                         >
-                          <ItemIcon className={cx("h-4 w-4", isActive ? "text-black" : "text-white/70")} />
-                        </span>
-                        {!collapsed && (
-                          <div className="flex min-w-0 flex-col text-left">
-                            <span className="text-sm font-semibold">{item.label}</span>
-                            <span className="text-xs text-white/45">{sectionLabelMap.get(item.section)}</span>
-                          </div>
-                        )}
-                        {!collapsed && isActive && (
-                          <span className="ml-auto flex items-center gap-1 text-xs font-medium text-black/70">
-                            Live
-                            <span className="h-2 w-2 rounded-full bg-black/60" />
+                          <span
+                            className={cx(
+                              "flex h-9 w-9 items-center justify-center rounded-xl border bg-white/5 text-white",
+                              accentStyles.border,
+                              isActive ? "bg-white text-black" : ""
+                            )}
+                          >
+                            <ItemIcon className={cx("h-4 w-4", isActive ? "text-black" : "text-white/70")} />
                           </span>
-                        )}
-                      </NavLink>
-                    );
-                  })}
-                </nav>
-              </div>
-            );
-          })}
-        </div>
-      </aside>
-
-      <MobileSidebar open={mobileOpen} onClose={() => setMobileOpen(false)} groups={groupedNav} pathname={location.pathname} />
-
-      <main className="relative flex-1 overflow-y-auto">
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-64 bg-[radial-gradient(circle_at_top,_rgba(255,86,146,0.25),transparent_65%)] blur-3xl" />
-        <div className="relative mx-auto flex w-full max-w-7xl flex-col gap-8 px-4 py-8 sm:px-6 lg:px-8">
-          <div className="flex flex-wrap items-start justify-between gap-6">
-            <div className="flex min-w-[200px] flex-col gap-3">
-              <div className="flex items-center gap-2 text-xs uppercase tracking-wide text-white/40">
-                {breadcrumb.map((crumb, index) => (
-                  <span key={`${crumb}-${index}`} className="flex items-center gap-2">
-                    {index > 0 && <span className="opacity-40">/</span>}
-                    <span className={cx(index === breadcrumb.length - 1 && "text-white/80")}>{crumb}</span>
-                  </span>
-                ))}
-              </div>
-              <h1 className="text-3xl font-semibold text-white md:text-4xl">
-                {activeNavItem?.label ?? "Painel"}
-              </h1>
-              {activeSectionMeta?.description && (
-                <p className="max-w-xl text-sm text-white/55">{activeSectionMeta.description}</p>
-              )}
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                onClick={() => setPaletteOpen(true)}
-                className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-4 py-2 text-sm text-white/80 transition hover:bg-white/10"
-              >
-                <Icon.search className="h-4 w-4" />
-                <span>Pesquisar</span>
-              </button>
-              <button
-                onClick={() => setOnlineOpen(true)}
-                className="inline-flex items-center gap-2 rounded-full border border-emerald-400/30 bg-emerald-400/10 px-4 py-2 text-sm text-emerald-200 transition hover:bg-emerald-400/20"
-                title="Ver jogadores online"
-              >
-                <Icon.users className="h-4 w-4" />
-                <span>{countLoading ? "..." : `${onlineCount ?? 0}`} online</span>
-              </button>
-            </div>
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            {dashboardStats.map((stat) => {
-              const StatIcon = stat.icon;
-              return (
-                <div
-                  key={stat.label}
-                  className="relative overflow-hidden rounded-3xl border border-white/10 bg-white/[0.02] p-5 shadow-[0_18px_45px_rgba(6,5,20,0.55)] backdrop-blur"
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <p className="text-xs uppercase tracking-wide text-white/45">{stat.label}</p>
-                      <p className="mt-2 text-2xl font-semibold text-white">{stat.value}</p>
-                      <p className="mt-1 text-xs text-white/50">{stat.note}</p>
-                    </div>
-                    <div className="rounded-2xl bg-white/10 p-3 text-white">
-                      <StatIcon className="h-5 w-5" />
-                    </div>
-                  </div>
+                          {!collapsed && (
+                            <div className="flex min-w-0 flex-col text-left">
+                              <span className="text-sm font-semibold">{item.label}</span>
+                              <span className="text-xs text-white/45">{SECTION_LABEL_MAP.get(item.section)}</span>
+                            </div>
+                          )}
+                          {!collapsed && isActive && (
+                            <span className="ml-auto flex items-center gap-1 text-xs font-medium text-black/70">
+                              Live
+                              <span className="h-2 w-2 rounded-full bg-black/60" />
+                            </span>
+                          )}
+                        </NavLink>
+                      );
+                    })}
+                  </nav>
                 </div>
               );
             })}
           </div>
+        </aside>
 
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {quickActions.map((action) => {
-              const ActionIcon = action.icon;
-              return (
+        <MobileSidebar open={mobileOpen} onClose={() => setMobileOpen(false)} groups={groupedNav} pathname={location.pathname} />
+
+        <main className="relative flex-1 overflow-y-auto">
+          <div className="pointer-events-none absolute inset-x-0 top-0 h-64 bg-[radial-gradient(circle_at_top,_rgba(255,86,146,0.25),transparent_65%)] blur-3xl" />
+          <div className="relative mx-auto flex w-full max-w-7xl flex-col gap-8 px-4 py-8 sm:px-6 lg:px-8">
+            <div className="flex flex-wrap items-start justify-between gap-6">
+              <div className="flex min-w-[200px] flex-col gap-3">
+                <div className="flex items-center gap-2 text-xs uppercase tracking-wide text-white/40">
+                  {breadcrumb.map((crumb, index) => (
+                    <span key={`${crumb}-${index}`} className="flex items-center gap-2">
+                      {index > 0 && <span className="opacity-40">/</span>}
+                      <span className={cx(index === breadcrumb.length - 1 && "text-white/80")}>{crumb}</span>
+                    </span>
+                  ))}
+                </div>
+                <h1 className="text-3xl font-semibold text-white md:text-4xl">
+                  {activeNavItem?.label ?? "Painel"}
+                </h1>
+                {activeSectionMeta?.description && (
+                  <p className="max-w-xl text-sm text-white/55">{activeSectionMeta.description}</p>
+                )}
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
                 <button
-                  key={action.label}
-                  onClick={action.onTrigger}
-                  className="group flex items-center justify-between rounded-3xl border border-white/10 bg-white/[0.03] px-4 py-3 text-left shadow-[0_12px_30px_rgba(6,5,20,0.35)] transition hover:border-white/20 hover:bg-white/[0.08]"
+                  onClick={() => setPaletteOpen(true)}
+                  className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-4 py-2 text-sm text-white/80 transition hover:bg-white/10"
                 >
-                  <div>
-                    <p className="text-sm font-semibold text-white">{action.label}</p>
-                    {action.description && <p className="text-xs text-white/55">{action.description}</p>}
-                  </div>
-                  <span className="rounded-2xl border border-white/15 bg-white/10 p-3 text-white transition group-hover:bg-white/20">
-                    <ActionIcon className="h-4 w-4" />
-                  </span>
+                  <Icon.search className="h-4 w-4" />
+                  <span>Pesquisar</span>
                 </button>
-              );
-            })}
-          </div>
-
-          <div className="rounded-[28px] border border-white/10 bg-white/[0.02] shadow-[0_20px_60px_rgba(10,8,25,0.45)] backdrop-blur">
-            <div className="rounded-[28px] border border-white/[0.08] bg-black/30 p-4 sm:p-6">
-              <Outlet />
+                <button
+                  onClick={() => setOnlineOpen(true)}
+                  className="inline-flex items-center gap-2 rounded-full border border-emerald-400/30 bg-emerald-400/10 px-4 py-2 text-sm text-emerald-200 transition hover:bg-emerald-400/20"
+                  title="Ver jogadores online"
+                >
+                  <Icon.users className="h-4 w-4" />
+                  <span>{countLoading ? "..." : `${onlineCount ?? 0}`} online</span>
+                </button>
+              </div>
             </div>
+
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              {dashboardStats.map((stat) => {
+                const StatIcon = stat.icon;
+                return (
+                  <div
+                    key={stat.label}
+                    className="relative overflow-hidden rounded-3xl border border-white/10 bg-white/[0.02] p-5 shadow-[0_18px_45px_rgba(6,5,20,0.55)] backdrop-blur"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-xs uppercase tracking-wide text-white/45">{stat.label}</p>
+                        <p className="mt-2 text-2xl font-semibold text-white">{stat.value}</p>
+                        <p className="mt-1 text-xs text-white/50">{stat.note}</p>
+                      </div>
+                      <div className="rounded-2xl bg-white/10 p-3 text-white">
+                        <StatIcon className="h-5 w-5" />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {quickActions.map((action) => {
+                const ActionIcon = action.icon;
+                return (
+                  <button
+                    key={action.label}
+                    onClick={action.onTrigger}
+                    className="group flex items-center justify-between rounded-3xl border border-white/10 bg-white/[0.03] px-4 py-3 text-left shadow-[0_12px_30px_rgba(6,5,20,0.35)] transition hover:border-white/20 hover:bg-white/[0.08]"
+                  >
+                    <div>
+                      <p className="text-sm font-semibold text-white">{action.label}</p>
+                      {action.description && <p className="text-xs text-white/55">{action.description}</p>}
+                    </div>
+                    <span className="rounded-2xl border border-white/15 bg-white/10 p-3 text-white transition group-hover:bg-white/20">
+                      <ActionIcon className="h-4 w-4" />
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="rounded-[28px] border border-white/10 bg-white/[0.02] shadow-[0_20px_60px_rgba(10,8,25,0.45)] backdrop-blur">
+              <div className="rounded-[28px] border border-white/[0.08] bg-black/30 p-4 sm:p-6">
+                <Outlet />
+              </div>
+            </div>
+
+            <footer className="pb-6 text-xs text-white/45">
+              (c) {new Date().getFullYear()} FTW Roleplay - Painel administrativo
+            </footer>
           </div>
+        </main>
+      </div>
 
-          <footer className="pb-6 text-xs text-white/45">
-            (c) {new Date().getFullYear()} FTW Roleplay - Painel administrativo
-          </footer>
-        </div>
-      </main>
+      <OnlineDrawer
+        open={onlineOpen}
+        onClose={() => setOnlineOpen(false)}
+        navigateToPlayer={(id) => navigate(`/admin/users/profiles/${encodeURIComponent(id)}`)}
+      />
+      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} navigate={navigate} pages={navItems} />
     </div>
-
-    <OnlineDrawer open={onlineOpen} onClose={() => setOnlineOpen(false)} navigateToPlayer={(id) => navigate(`/admin/users/profiles/${encodeURIComponent(id)}`)} />
-    <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} navigate={navigate} pages={navItems} />
-  </div>
-);
+  );
 }
-

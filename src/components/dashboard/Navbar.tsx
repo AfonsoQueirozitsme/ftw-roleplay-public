@@ -142,6 +142,14 @@ const DashboardNavbar: React.FC = () => {
             </li>
             <li>
               <NavLink
+                to="/dashboard/characters"
+                className={({ isActive }) => `${linkBase} ${isActive ? linkActive : linkIdle}`}
+              >
+                Personagens
+              </NavLink>
+            </li>
+            <li>
+              <NavLink
                 to="/dashboard/rules"
                 className={({ isActive }) => `${linkBase} ${isActive ? linkActive : linkIdle}`}
               >

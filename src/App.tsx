@@ -17,6 +17,7 @@ import DashboardPage from "@/pages/dashboard/Index";
 import ReportsTab from "@/pages/dashboard/ReportsTab";
 import EarlyAccessTab from "@/pages/dashboard/EarlyAccessTab";
 import RulesTab from "@/pages/dashboard/RulesTab";
+import CharactersTab from "@/pages/dashboard/CharactersTab";
 
 /* — Páginas estáticas — */
 import Terms from "@/pages/static/Terms";
@@ -100,6 +101,7 @@ export default function App() {
         <Route index element={<Navigate to="reports" replace />} />
         <Route path="reports" element={<ReportsTab />} />
         <Route path="early-access" element={<EarlyAccessTab />} />
+        <Route path="characters" element={<CharactersTab />} />
         <Route path="rules" element={<RulesTab />} />
         <Route path="*" element={<NotFound />} />
       </Route>
