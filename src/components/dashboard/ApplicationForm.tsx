@@ -212,29 +212,42 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({
 
     setLoading(true);
     try {
-      const { error } = await supabase
+      // Obter user_id se o utilizador estiver autenticado
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      const insertData: any = {
+        nome,
+        email,
+        personagem,
+        motivacao,
+        status: "pending",
+        discord_id: d.id,
+        discord_username: d.username,
+      };
+
+      // Adicionar user_id se existir
+      if (user?.id) {
+        insertData.user_id = user.id;
+      }
+
+      const { data, error } = await supabase
         .from("applications")
-        .insert([
-          {
-            nome,
-            email,
-            personagem,
-            motivacao,
-            website: website || null,
-            status: "pending",
-            discord_id: d.id,
-            discord_username: d.username,
-            discord_global_name: d.global_name,
-            discord_avatar_url: d.avatar_url,
-            discord_verified: true,
-            discord_checked_at: new Date().toISOString(),
-          },
-        ])
+        .insert([insertData])
         .select();
 
       if (error) {
-        console.error(error);
-        setGlobalError("Não foi possível enviar a candidatura. Tenta novamente em breve.");
+        console.error("Erro ao inserir candidatura:", error);
+        // Mostrar mensagem de erro mais detalhada em desenvolvimento
+        const errorMessage = import.meta.env.DEV 
+          ? `Erro: ${error.message} (${error.code || 'N/A'})`
+          : "Não foi possível enviar a candidatura. Verifica se todos os campos estão preenchidos corretamente.";
+        setGlobalError(errorMessage);
+        return;
+      }
+
+      if (!data || data.length === 0) {
+        console.error("Nenhum dado retornado após inserção");
+        setGlobalError("A candidatura foi enviada mas não foi possível confirmar. Contacta o suporte se o problema persistir.");
         return;
       }
 

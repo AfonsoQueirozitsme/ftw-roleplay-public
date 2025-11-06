@@ -48,29 +48,42 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({ className = "", onSub
 
     setLoading(true);
     try {
-      const { error } = await supabase
+      // Obter user_id se o utilizador estiver autenticado
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      const insertData: any = {
+        nome,
+        email,
+        personagem,
+        motivacao,
+        status: "pending",
+        discord_id: null,
+        discord_username: null,
+      };
+
+      // Adicionar user_id se existir
+      if (user?.id) {
+        insertData.user_id = user.id;
+      }
+
+      const { data, error } = await supabase
         .from("applications")
-        .insert([
-          {
-            nome,
-            email,
-            personagem,
-            motivacao,
-            website: null,
-            status: "pending",
-            discord_id: null,
-            discord_username: null,
-            discord_global_name: null,
-            discord_avatar_url: null,
-            discord_verified: false,
-            discord_checked_at: null,
-          },
-        ])
+        .insert([insertData])
         .select();
 
       if (error) {
-        console.error(error);
-        setErrors("Não foi possível enviar a candidatura. Tenta novamente em breve.");
+        console.error("Erro ao inserir candidatura:", error);
+        // Mostrar mensagem de erro mais detalhada em desenvolvimento
+        const errorMessage = import.meta.env.DEV 
+          ? `Erro: ${error.message} (${error.code || 'N/A'})`
+          : "Não foi possível enviar a candidatura. Verifica se todos os campos estão preenchidos corretamente.";
+        setErrors(errorMessage);
+        return;
+      }
+
+      if (!data || data.length === 0) {
+        console.error("Nenhum dado retornado após inserção");
+        setErrors("A candidatura foi enviada mas não foi possível confirmar. Contacta o suporte se o problema persistir.");
         return;
       }
 
