@@ -20,6 +20,15 @@ export type TebexCheckoutResponse = {
   url: string;
 };
 
+export type TebexGiftCard = {
+  id: number;
+  code: string;
+  amount: number;
+  currency: string;
+  note?: string;
+  expires_at?: string;
+};
+
 /**
  * Cria um carrinho de compras no Tebex e adiciona um pacote
  * @param packageId ID do pacote no Tebex
@@ -103,6 +112,108 @@ export async function createTebexCheckout(
 }
 
 /**
+ * Resgata um código de gift card ou cupom do Tebex
+ * @param code Código do gift card/cupom
+ * @param username Nome de utilizador (opcional)
+ * @returns Informações sobre o resgate
+ */
+export async function redeemTebexCode(
+  code: string,
+  username?: string
+): Promise<{ success: boolean; message: string; amount?: number; currency?: string }> {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      throw new Error("Utilizador não autenticado");
+    }
+
+    const webstoreId = import.meta.env.VITE_TEBEX_WEBSTORE_ID;
+    const secretKey = import.meta.env.VITE_TEBEX_SECRET_KEY;
+
+    if (!webstoreId || !secretKey) {
+      throw new Error("Configuração do Tebex não encontrada. Contacta o administrador.");
+    }
+
+    // Criar um carrinho primeiro
+    const basketResponse = await fetch(
+      `https://headless.tebex.io/api/accounts/${webstoreId}/baskets`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Tebex-Secret": secretKey,
+        },
+        body: JSON.stringify({
+          username: username || user.email || user.id,
+          complete_auto_redirect: false,
+        }),
+      }
+    );
+
+    if (!basketResponse.ok) {
+      const errorText = await basketResponse.text();
+      throw new Error(`Erro ao criar carrinho: ${errorText}`);
+    }
+
+    const basket: TebexBasket = await basketResponse.json();
+
+    // Aplicar o código ao carrinho
+    const applyCodeResponse = await fetch(
+      `https://headless.tebex.io/api/accounts/${webstoreId}/baskets/${basket.id}/coupons/${code}`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Tebex-Secret": secretKey,
+        },
+      }
+    );
+
+    if (!applyCodeResponse.ok) {
+      // Tentar como gift card
+      const giftCardResponse = await fetch(
+        `https://headless.tebex.io/api/accounts/${webstoreId}/gift-cards/${code}/redeem`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Tebex-Secret": secretKey,
+          },
+          body: JSON.stringify({
+            username: username || user.email || user.id,
+          }),
+        }
+      );
+
+      if (!giftCardResponse.ok) {
+        const errorData = await giftCardResponse.json().catch(() => ({ error: "Código inválido" }));
+        throw new Error(errorData.error || "Código inválido ou já utilizado");
+      }
+
+      const giftCardData = await giftCardResponse.json();
+      return {
+        success: true,
+        message: `Gift card resgatado com sucesso! Valor: ${giftCardData.amount || 0} ${giftCardData.currency || "EUR"}`,
+        amount: giftCardData.amount,
+        currency: giftCardData.currency,
+      };
+    }
+
+    const couponData = await applyCodeResponse.json();
+    return {
+      success: true,
+      message: `Cupom aplicado com sucesso! Desconto: ${couponData.discount || 0}%`,
+      amount: couponData.discount,
+      currency: "EUR",
+    };
+  } catch (error: any) {
+    console.error("Erro ao resgatar código Tebex:", error);
+    throw new Error(error.message || "Erro ao resgatar código. Verifica se o código está correto e ainda é válido.");
+  }
+}
+
+/**
  * Lista os pacotes disponíveis no Tebex (opcional, se quiseres buscar dinamicamente)
  */
 export async function listTebexPackages(): Promise<TebexPackage[]> {
@@ -134,4 +245,3 @@ export async function listTebexPackages(): Promise<TebexPackage[]> {
     return [];
   }
 }
-

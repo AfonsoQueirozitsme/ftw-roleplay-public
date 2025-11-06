@@ -1303,8 +1303,8 @@ export default function AdminLayout() {
   return (
     <div className="relative min-h-screen bg-[#040406] text-white">
       <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top,_rgba(234,44,97,0.18),rgba(27,22,60,0.35),transparent_75%)]" />
-      <header className="sticky top-0 z-40 border-b border-white/10 bg-gradient-to-r from-black/95 via-black/75 to-black/90 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8">
+      <header className="sticky top-0 z-40 border-b border-white/10 bg-gradient-to-r from-black/95 via-black/80 to-black/90 backdrop-blur-xl shadow-lg">
+        <div className="mx-auto flex max-w-[1920px] items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-8">
           <div className="flex items-center gap-3">
             <button
               className="rounded-xl border border-white/15 bg-white/10 p-2 text-white/70 transition hover:text-white md:hidden"
@@ -1337,17 +1337,19 @@ export default function AdminLayout() {
           <div className="flex items-center gap-3">
             <button
               onClick={() => setPaletteOpen(true)}
-              className="hidden items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-2 text-xs text-white/70 transition hover:text-white md:flex"
+              className="hidden items-center gap-2 rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-xs text-white/70 transition hover:bg-white/10 hover:text-white md:flex"
+              title="Pesquisa rápida (Ctrl+K)"
             >
-              <Icon.search className="h-4 w-4" />
-              <span>Ctrl + K</span>
+              <Icon.search className="h-3.5 w-3.5" />
+              <span className="hidden lg:inline">Ctrl+K</span>
             </button>
             <button
               onClick={() => setOnlineOpen(true)}
-              className="hidden items-center gap-2 rounded-full border border-emerald-400/30 bg-emerald-400/10 px-3 py-2 text-xs text-emerald-200 transition hover:border-emerald-400/50 hover:bg-emerald-400/20 sm:flex"
+              className="hidden items-center gap-2 rounded-lg border border-emerald-400/30 bg-emerald-400/10 px-3 py-1.5 text-xs text-emerald-200 transition hover:border-emerald-400/50 hover:bg-emerald-400/20 sm:flex"
+              title="Ver jogadores online"
             >
-              <Icon.users className="h-4 w-4" />
-              <span>{countLoading ? "..." : `${onlineCount ?? 0}`} online</span>
+              <Icon.users className="h-3.5 w-3.5" />
+              <span>{countLoading ? "..." : `${onlineCount ?? 0}`}</span>
             </button>
             <AvatarMenu email={email} onLogout={onLogout} />
           </div>
@@ -1357,44 +1359,45 @@ export default function AdminLayout() {
       <div className="flex">
         <aside
           className={cx(
-            "hidden md:flex flex-col border-r border-white/10 bg-gradient-to-b from-white/[0.08] via-white/[0.02] to-transparent backdrop-blur-xl px-4 py-5 transition-all duration-300",
-            collapsed ? "w-24 items-center" : "w-80"
+            "hidden md:flex flex-col border-r border-white/10 bg-gradient-to-b from-white/[0.08] via-white/[0.02] to-transparent backdrop-blur-xl px-3 py-4 transition-all duration-200",
+            collapsed ? "w-20 items-center" : "w-72"
           )}
         >
-          <div className={cx("flex items-center justify-between", collapsed ? "w-full" : "")}>
+          <div className={cx("flex items-center justify-between mb-2", collapsed ? "w-full flex-col gap-2" : "")}>
             {!collapsed && (
-              <div className="flex flex-col gap-1">
-                <span className="text-xs uppercase tracking-[0.35em] text-white/40">Navigation</span>
-                <span className="text-sm font-semibold text-white/80">For The Win Layers</span>
+              <div className="flex flex-col gap-0.5">
+                <span className="text-[10px] uppercase tracking-[0.4em] text-white/30">Navigation</span>
+                <span className="text-xs font-semibold text-white/90">FTW Admin</span>
               </div>
             )}
             <button
-              className="rounded-xl border border-white/15 bg-white/10 p-2 text-white/70 transition hover:text-white"
+              className="rounded-lg border border-white/15 bg-white/10 p-1.5 text-white/70 transition hover:bg-white/20 hover:text-white"
               onClick={() => setCollapsed((value) => !value)}
               aria-label="Alternar navegação"
+              title={collapsed ? "Expandir" : "Colapsar"}
             >
-              {collapsed ? <Icon.chevronRight className="h-4 w-4" /> : <Icon.chevronLeft className="h-4 w-4" />}
+              {collapsed ? <Icon.chevronRight className="h-3.5 w-3.5" /> : <Icon.chevronLeft className="h-3.5 w-3.5" />}
             </button>
           </div>
 
-          <div className="mt-6 flex-1 overflow-y-auto">
+          <div className="mt-4 flex-1 overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:bg-white/20 [&::-webkit-scrollbar-thumb]:rounded-full">
             {groupedNav.map((section) => {
               const accent = SECTION_ACCENT[section.id];
               return (
-                <div key={section.id} className="mb-6">
+                <div key={section.id} className="mb-4">
                   {!collapsed && (
                     <div
                       className={cx(
-                        "mb-3 flex items-center justify-between rounded-2xl border px-3 py-2 text-xs font-semibold uppercase tracking-wide text-white/70",
+                        "mb-2 flex items-center justify-between rounded-lg border px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-white/60",
                         accent.border,
                         accent.glow
                       )}
                     >
                       <span>{section.label}</span>
-                      <span className="text-white/40">{section.items.length}</span>
+                      <span className="text-white/30 text-[9px]">{section.items.length}</span>
                     </div>
                   )}
-                  <nav className={cx("flex flex-col gap-2", collapsed && "items-center")}>
+                  <nav className={cx("flex flex-col gap-1.5", collapsed && "items-center")}>
                     {section.items.map((item) => {
                       const isActive = item.exact
                         ? location.pathname === item.to
@@ -1408,32 +1411,33 @@ export default function AdminLayout() {
                           end={!!item.exact}
                           title={item.label}
                           className={cx(
-                            "group relative flex w-full items-center gap-3 rounded-2xl border px-3 py-2 text-sm transition",
-                            collapsed ? "justify-center" : "pl-3 pr-4",
+                            "group relative flex w-full items-center gap-2.5 rounded-xl border px-2.5 py-2 text-sm transition-all duration-150",
+                            collapsed ? "justify-center px-2" : "pl-2.5 pr-3",
                             isActive
-                              ? `border-white/30 bg-gradient-to-r ${accentStyles.pill} text-black shadow-[0_18px_40px_rgba(18,18,40,0.45)]`
-                              : "border-transparent text-white/70 hover:border-white/15 hover:bg-white/5 hover:text-white"
+                              ? `border-white/40 bg-gradient-to-r ${accentStyles.pill} text-black shadow-lg shadow-black/20`
+                              : "border-transparent text-white/60 hover:border-white/20 hover:bg-white/10 hover:text-white"
                           )}
                         >
                           <span
                             className={cx(
-                              "flex h-9 w-9 items-center justify-center rounded-xl border bg-white/5 text-white",
+                              "flex h-8 w-8 items-center justify-center rounded-lg border transition-all",
                               accentStyles.border,
-                              isActive ? "bg-white text-black" : ""
+                              isActive 
+                                ? "bg-white text-black border-white/50" 
+                                : "bg-white/5 text-white/70 border-white/10 group-hover:bg-white/10 group-hover:border-white/20"
                             )}
                           >
-                            <ItemIcon className={cx("h-4 w-4", isActive ? "text-black" : "text-white/70")} />
+                            <ItemIcon className={cx("h-3.5 w-3.5", isActive ? "text-black" : "text-white/70 group-hover:text-white")} />
                           </span>
                           {!collapsed && (
-                            <div className="flex min-w-0 flex-col text-left">
-                              <span className="text-sm font-semibold">{item.label}</span>
-                              <span className="text-xs text-white/45">{SECTION_LABEL_MAP.get(item.section)}</span>
+                            <div className="flex min-w-0 flex-1 flex-col text-left">
+                              <span className="text-xs font-semibold leading-tight">{item.label}</span>
+                              <span className="text-[10px] text-white/40 leading-tight">{SECTION_LABEL_MAP.get(item.section)}</span>
                             </div>
                           )}
                           {!collapsed && isActive && (
-                            <span className="ml-auto flex items-center gap-1 text-xs font-medium text-black/70">
-                              Live
-                              <span className="h-2 w-2 rounded-full bg-black/60" />
+                            <span className="ml-auto flex items-center gap-1 text-[10px] font-medium text-black/60">
+                              <span className="h-1.5 w-1.5 rounded-full bg-black/50 animate-pulse" />
                             </span>
                           )}
                         </NavLink>
@@ -1448,61 +1452,63 @@ export default function AdminLayout() {
 
         <MobileSidebar open={mobileOpen} onClose={() => setMobileOpen(false)} groups={groupedNav} pathname={location.pathname} />
 
-        <main className="relative flex-1 overflow-y-auto">
-          <div className="pointer-events-none absolute inset-x-0 top-0 h-64 bg-[radial-gradient(circle_at_top,_rgba(255,86,146,0.25),transparent_65%)] blur-3xl" />
-          <div className="relative mx-auto flex w-full max-w-7xl flex-col gap-8 px-4 py-8 sm:px-6 lg:px-8">
-            <div className="flex flex-wrap items-start justify-between gap-6">
-              <div className="flex min-w-[200px] flex-col gap-3">
-                <div className="flex items-center gap-2 text-xs uppercase tracking-wide text-white/40">
+        <main className="relative flex-1 overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:bg-white/20 [&::-webkit-scrollbar-thumb]:rounded-full">
+          <div className="pointer-events-none absolute inset-x-0 top-0 h-48 bg-[radial-gradient(circle_at_top,_rgba(255,86,146,0.2),transparent_60%)] blur-2xl" />
+          <div className="relative mx-auto flex w-full max-w-[1920px] flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div className="flex min-w-0 flex-1 flex-col gap-2">
+                <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-white/30">
                   {breadcrumb.map((crumb, index) => (
-                    <span key={`${crumb}-${index}`} className="flex items-center gap-2">
-                      {index > 0 && <span className="opacity-40">/</span>}
-                      <span className={cx(index === breadcrumb.length - 1 && "text-white/80")}>{crumb}</span>
+                    <span key={`${crumb}-${index}`} className="flex items-center gap-1.5">
+                      {index > 0 && <span className="opacity-30">/</span>}
+                      <span className={cx(index === breadcrumb.length - 1 && "text-white/60 font-semibold")}>{crumb}</span>
                     </span>
                   ))}
                 </div>
-                <h1 className="text-3xl font-semibold text-white md:text-4xl">
+                <h1 className="text-2xl font-bold text-white sm:text-3xl">
                   {activeNavItem?.label ?? "Painel"}
                 </h1>
                 {activeSectionMeta?.description && (
-                  <p className="max-w-xl text-sm text-white/55">{activeSectionMeta.description}</p>
+                  <p className="max-w-2xl text-xs text-white/50">{activeSectionMeta.description}</p>
                 )}
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <button
                   onClick={() => setPaletteOpen(true)}
-                  className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-4 py-2 text-sm text-white/80 transition hover:bg-white/10"
+                  className="inline-flex items-center gap-2 rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-xs text-white/70 transition hover:bg-white/10 hover:text-white"
+                  title="Pesquisa rápida (Ctrl+K)"
                 >
-                  <Icon.search className="h-4 w-4" />
-                  <span>Pesquisar</span>
+                  <Icon.search className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Pesquisar</span>
                 </button>
                 <button
                   onClick={() => setOnlineOpen(true)}
-                  className="inline-flex items-center gap-2 rounded-full border border-emerald-400/30 bg-emerald-400/10 px-4 py-2 text-sm text-emerald-200 transition hover:bg-emerald-400/20"
+                  className="inline-flex items-center gap-2 rounded-lg border border-emerald-400/30 bg-emerald-400/10 px-3 py-1.5 text-xs text-emerald-200 transition hover:bg-emerald-400/20"
                   title="Ver jogadores online"
                 >
-                  <Icon.users className="h-4 w-4" />
-                  <span>{countLoading ? "..." : `${onlineCount ?? 0}`} online</span>
+                  <Icon.users className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">{countLoading ? "..." : `${onlineCount ?? 0}`} online</span>
+                  <span className="sm:hidden">{countLoading ? "..." : onlineCount ?? 0}</span>
                 </button>
               </div>
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               {dashboardStats.map((stat) => {
                 const StatIcon = stat.icon;
                 return (
                   <div
                     key={stat.label}
-                    className="relative overflow-hidden rounded-3xl border border-white/10 bg-white/[0.02] p-5 shadow-[0_18px_45px_rgba(6,5,20,0.55)] backdrop-blur"
+                    className="relative overflow-hidden rounded-xl border border-white/10 bg-white/[0.02] p-4 shadow-lg backdrop-blur transition hover:border-white/20 hover:bg-white/[0.04]"
                   >
                     <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <p className="text-xs uppercase tracking-wide text-white/45">{stat.label}</p>
-                        <p className="mt-2 text-2xl font-semibold text-white">{stat.value}</p>
-                        <p className="mt-1 text-xs text-white/50">{stat.note}</p>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[10px] uppercase tracking-wider text-white/40">{stat.label}</p>
+                        <p className="mt-1.5 text-xl font-bold text-white">{stat.value}</p>
+                        <p className="mt-0.5 text-[10px] text-white/40">{stat.note}</p>
                       </div>
-                      <div className="rounded-2xl bg-white/10 p-3 text-white">
-                        <StatIcon className="h-5 w-5" />
+                      <div className="rounded-lg bg-white/10 p-2.5 text-white flex-shrink-0">
+                        <StatIcon className="h-4 w-4" />
                       </div>
                     </div>
                   </div>
@@ -1510,29 +1516,29 @@ export default function AdminLayout() {
               })}
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
               {quickActions.map((action) => {
                 const ActionIcon = action.icon;
                 return (
                   <button
                     key={action.label}
                     onClick={action.onTrigger}
-                    className="group flex items-center justify-between rounded-3xl border border-white/10 bg-white/[0.03] px-4 py-3 text-left shadow-[0_12px_30px_rgba(6,5,20,0.35)] transition hover:border-white/20 hover:bg-white/[0.08]"
+                    className="group flex items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5 text-left shadow transition hover:border-white/20 hover:bg-white/[0.08]"
                   >
-                    <div>
-                      <p className="text-sm font-semibold text-white">{action.label}</p>
-                      {action.description && <p className="text-xs text-white/55">{action.description}</p>}
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-semibold text-white">{action.label}</p>
+                      {action.description && <p className="text-[10px] text-white/50 mt-0.5">{action.description}</p>}
                     </div>
-                    <span className="rounded-2xl border border-white/15 bg-white/10 p-3 text-white transition group-hover:bg-white/20">
-                      <ActionIcon className="h-4 w-4" />
+                    <span className="rounded-lg border border-white/15 bg-white/10 p-2 text-white transition group-hover:bg-white/20 flex-shrink-0 ml-2">
+                      <ActionIcon className="h-3.5 w-3.5" />
                     </span>
                   </button>
                 );
               })}
             </div>
 
-            <div className="rounded-[28px] border border-white/10 bg-white/[0.02] shadow-[0_20px_60px_rgba(10,8,25,0.45)] backdrop-blur">
-              <div className="rounded-[28px] border border-white/[0.08] bg-black/30 p-4 sm:p-6">
+            <div className="rounded-2xl border border-white/10 bg-white/[0.02] shadow-xl backdrop-blur">
+              <div className="rounded-2xl border border-white/[0.08] bg-black/30 p-4 sm:p-6">
                 <Outlet />
               </div>
             </div>

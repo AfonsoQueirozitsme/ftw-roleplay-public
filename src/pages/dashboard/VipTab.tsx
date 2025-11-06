@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import UltraSpinner from "@/components/layout/Spinner";
+import { redeemTebexCode } from "@/lib/api/tebex";
 
 const RING = "focus:outline-none focus:ring-2 focus:ring-[#e53e30]/70 focus:ring-offset-2 focus:ring-offset-[#151515]";
 
@@ -238,20 +239,36 @@ export default function VipTab() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Utilizador não autenticado");
 
-      const { data, error } = await supabase.rpc("redeem_code", {
-        user_id: user.id,
-        code: redeemCode.trim().toUpperCase(),
-      });
+      // Tentar resgatar via Tebex API
+      try {
+        const result = await redeemTebexCode(redeemCode.trim().toUpperCase(), user.email || undefined);
+        
+        toast({
+          title: "Código resgatado!",
+          description: result.message,
+        });
 
-      if (error) throw error;
+        setRedeemCode("");
+        await loadVipStatus();
+      } catch (tebexError: any) {
+        // Fallback para sistema interno se o Tebex falhar
+        console.warn("Erro ao resgatar via Tebex, tentando sistema interno:", tebexError);
+        
+        const { data, error } = await supabase.rpc("redeem_code", {
+          user_id: user.id,
+          code: redeemCode.trim().toUpperCase(),
+        });
 
-      toast({
-        title: "Código resgatado!",
-        description: data.message || "O código foi resgatado com sucesso.",
-      });
+        if (error) throw error;
 
-      setRedeemCode("");
-      await loadVipStatus();
+        toast({
+          title: "Código resgatado!",
+          description: data.message || "O código foi resgatado com sucesso.",
+        });
+
+        setRedeemCode("");
+        await loadVipStatus();
+      }
     } catch (err: any) {
       console.error("Erro ao resgatar código:", err);
       toast({
