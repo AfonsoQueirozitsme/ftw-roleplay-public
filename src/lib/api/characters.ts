@@ -53,8 +53,15 @@ async function fetchJson<T>(url: string, init: FetchInit = {}): Promise<T> {
 /** Normaliza formatos comuns de Discord ID: "discord:123", "<@123>", "<@!123>" → "123" */
 function normDiscordId(x: string | null | undefined): string | null {
   if (!x) return null;
-  const s = String(x).trim().toLowerCase();
-  return s.replace(/^discord:/, "").replace(/^<@!?/, "").replace(/>$/, "");
+  const s = String(x).trim();
+  // Não converte para lowercase porque Discord IDs são numéricos
+  const normalized = s.replace(/^discord:/i, "").replace(/^<@!?/, "").replace(/>$/, "").trim();
+  // Valida que é um número válido (Discord IDs são 17-19 dígitos)
+  if (!/^\d{17,19}$/.test(normalized)) {
+    console.warn("Discord ID inválido após normalização:", x, "→", normalized);
+    return null;
+  }
+  return normalized;
 }
 
 /* =========================
@@ -132,33 +139,47 @@ async function fetchAllPlayers(limit = 200): Promise<PlayerRow[]> {
   let page = 1;
   const all: PlayerRow[] = [];
   let total: number | undefined;
+  const maxPages = 50; // Limite de segurança para evitar loops infinitos
 
-  while (true) {
-    const qs = new URLSearchParams({
-      page: String(page),
-      limit: String(limit),
-      sort: "last_updated",
-      dir: "desc",
-    });
+  try {
+    while (page <= maxPages) {
+      const qs = new URLSearchParams({
+        page: String(page),
+        limit: String(limit),
+        sort: "last_updated",
+        dir: "desc",
+      });
 
-    const url = `${FUNCTIONS_URL}/players?${qs.toString()}`;
-    const res = await fetchJson<{ data: PlayerRow[]; total?: number }>(url, {
-      headers,
-      timeoutMs: 15000,
-    });
+      const url = `${FUNCTIONS_URL}/players?${qs.toString()}`;
+      const res = await fetchJson<{ data: PlayerRow[]; total?: number }>(url, {
+        headers,
+        timeoutMs: 15000,
+      });
 
-    const batch = res.data ?? [];
-    all.push(...batch);
+      const batch = res.data ?? [];
+      if (batch.length === 0) break; // Sem mais dados
 
-    if (res.total && total === undefined) total = res.total;
+      all.push(...batch);
 
-    if (batch.length < limit) break; // chegou à última página
-    if (total && all.length >= total) break;
+      if (res.total && total === undefined) total = res.total;
 
-    page += 1;
+      // Condições de parada
+      if (batch.length < limit) break; // chegou à última página
+      if (total && all.length >= total) break;
+
+      page += 1;
+    }
+
+    return all;
+  } catch (err) {
+    console.error("Erro ao buscar players:", err);
+    // Retorna o que conseguiu buscar até agora em vez de falhar completamente
+    if (all.length > 0) {
+      console.warn(`Retornando ${all.length} players parcialmente carregados`);
+      return all;
+    }
+    throw new Error(err instanceof Error ? err.message : "Falha ao buscar players");
   }
-
-  return all;
 }
 
 /* =========================
@@ -166,22 +187,47 @@ async function fetchAllPlayers(limit = 200): Promise<PlayerRow[]> {
 ========================= */
 
 /**
- * Lista personagens por Discord ID sem alterar a API:
- * - Vai buscar todas as páginas de /players
- * - Filtra localmente por players.discordid
+ * Lista personagens por Discord ID.
+ * Tenta primeiro usar um endpoint específico se disponível, caso contrário busca todas as páginas.
  */
 export async function listCharactersByDiscordId(discordId: string) {
   const target = normDiscordId(discordId);
-  if (!target) return [];
+  if (!target) {
+    console.warn("Discord ID inválido:", discordId);
+    return [];
+  }
 
-  const players = await fetchAllPlayers(200);
+  try {
+    // Tenta primeiro buscar diretamente por discordid se a API suportar
+    const headers = await authHeaders();
+    const directUrl = `${FUNCTIONS_URL}/players?discordid=${encodeURIComponent(target)}`;
+    
+    try {
+      const directRes = await fetchJson<{ data: PlayerRow[] }>(directUrl, {
+        headers,
+        timeoutMs: 10000,
+      });
+      
+      if (directRes.data && Array.isArray(directRes.data) && directRes.data.length > 0) {
+        return directRes.data.map(mapPlayerToCharacter);
+      }
+    } catch (directErr) {
+      // Se o endpoint direto não funcionar, continua com a busca completa
+      console.debug("Busca direta por discordid não disponível, usando busca completa:", directErr);
+    }
 
-  const filtered = players.filter((p) => {
-    const did = normDiscordId((p as any)?.discordid);
-    return did === target;
-  });
+    // Fallback: busca todas as páginas e filtra localmente
+    const players = await fetchAllPlayers(200);
+    const filtered = players.filter((p) => {
+      const did = normDiscordId((p as any)?.discordid);
+      return did === target;
+    });
 
-  return filtered.map(mapPlayerToCharacter);
+    return filtered.map(mapPlayerToCharacter);
+  } catch (err) {
+    console.error("Erro ao buscar personagens por Discord ID:", err);
+    throw new Error(err instanceof Error ? err.message : "Falha ao carregar personagens");
+  }
 }
 
 /**
@@ -189,13 +235,27 @@ export async function listCharactersByDiscordId(discordId: string) {
  * Mapeia o retorno de /players/:id para CharacterRecord.
  */
 export async function getCharacterDetail(characterId: string) {
-  const headers = await authHeaders();
-  const url = `${FUNCTIONS_URL}/players/${encodeURIComponent(characterId)}`;
-  const payload = await fetchJson<{ data: PlayerRow }>(url, {
-    headers,
-    timeoutMs: 12000,
-  });
-  return mapPlayerToCharacter(payload.data);
+  if (!characterId) {
+    throw new Error("characterId é obrigatório");
+  }
+
+  try {
+    const headers = await authHeaders();
+    const url = `${FUNCTIONS_URL}/players/${encodeURIComponent(characterId)}`;
+    const payload = await fetchJson<{ data: PlayerRow }>(url, {
+      headers,
+      timeoutMs: 12000,
+    });
+    
+    if (!payload.data) {
+      throw new Error("Personagem não encontrada");
+    }
+    
+    return mapPlayerToCharacter(payload.data);
+  } catch (err) {
+    console.error("Erro ao buscar detalhes da personagem:", err);
+    throw err instanceof Error ? err : new Error("Falha ao carregar detalhes da personagem");
+  }
 }
 
 /**
@@ -207,12 +267,27 @@ export async function performCharacterAction(
   action: string,
   payload?: Record<string, unknown>
 ) {
-  const headers = await authHeaders();
-  const url = `${FUNCTIONS_URL}/players/${encodeURIComponent(characterId)}/actions`;
-  return fetchJson<CharacterActionResponse>(url, {
-    method: "POST",
-    headers,
-    body: JSON.stringify({ action, payload }),
-    timeoutMs: 15000,
-  });
+  if (!characterId || !action) {
+    throw new Error("characterId e action são obrigatórios");
+  }
+
+  try {
+    const headers = await authHeaders();
+    const url = `${FUNCTIONS_URL}/players/${encodeURIComponent(characterId)}/actions`;
+    const response = await fetchJson<CharacterActionResponse>(url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ action, payload }),
+      timeoutMs: 15000,
+    });
+    
+    if (!response.success) {
+      throw new Error(response.message || "Ação falhou");
+    }
+    
+    return response;
+  } catch (err) {
+    console.error("Erro ao executar ação na personagem:", err);
+    throw err instanceof Error ? err : new Error("Falha ao executar ação");
+  }
 }

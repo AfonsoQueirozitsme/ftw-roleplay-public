@@ -696,14 +696,35 @@ export default function CharactersTab() {
   }, []);
 
   const bootstrapDiscordId = useCallback(async () => {
-    const { data } = await supabase.auth.getUser();
-    const autoId = extractDiscordId(data.user as any);
-    if (autoId) setActiveDiscordId(autoId);
-    setAutoFilled(true);
+    try {
+      const { data, error } = await supabase.auth.getUser();
+      if (error) {
+        console.warn("Erro ao obter usuário:", error);
+        setAutoFilled(true);
+        return;
+      }
+      const autoId = extractDiscordId(data.user as any);
+      if (autoId) {
+        setActiveDiscordId(autoId);
+      } else {
+        console.debug("Nenhum Discord ID encontrado no usuário autenticado");
+      }
+      setAutoFilled(true);
+    } catch (err) {
+      console.error("Erro ao inicializar Discord ID:", err);
+      setAutoFilled(true);
+    }
   }, []);
 
   const fetchCharacters = useCallback(
     async (discordId: string) => {
+      if (!discordId || !discordId.trim()) {
+        setError("Discord ID inválido");
+        setCharacters([]);
+        setSelected(null);
+        return;
+      }
+
       setLoading(true);
       setError(null);
       setActionMessage(null);
@@ -715,10 +736,14 @@ export default function CharactersTab() {
           const updated = data.find((item) => item.id === prev.id);
           return updated ?? data[0] ?? null;
         });
+        if (data.length === 0) {
+          setError("Nenhuma personagem encontrada para este Discord ID.");
+        }
       } catch (err) {
+        console.error("Erro ao buscar personagens:", err);
         setCharacters([]);
         setSelected(null);
-        setError(err instanceof Error ? err.message : "Falha ao carregar personagens.");
+        setError(err instanceof Error ? err.message : "Falha ao carregar personagens. Verifica a tua ligação ao servidor.");
       } finally {
         setLoading(false);
       }
@@ -758,23 +783,39 @@ export default function CharactersTab() {
 
   const loadFines = useCallback(
     async (characterId: string) => {
+      if (!characterId) {
+        setFines([]);
+        return;
+      }
+
       setFinesLoading(true);
       setSelectedFineIds(new Set());
       setFines([]);
       try {
-        // 👉 Ajusta esta rota se a tua Edge Function usar outro caminho/parâmetros
         const base = import.meta.env.VITE_SUPABASE_URL as string;
+        if (!base) {
+          throw new Error("VITE_SUPABASE_URL não configurado");
+        }
         const url = `${base}/functions/v1/players/${encodeURIComponent(characterId)}/fines`;
         const headers = await authHeaders();
         const res = await fetch(url, { headers, method: "GET" });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        
+        if (!res.ok) {
+          if (res.status === 404) {
+            // Endpoint não existe ou personagem não tem multas
+            setFines([]);
+            return;
+          }
+          throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+        }
+        
         const payload = (await res.json()) as { data?: FineRow[] } | FineRow[];
         const list = Array.isArray(payload) ? payload : payload.data ?? [];
         setFines(
           list.map((f) => ({
             id: String(f.id),
             code: f.code ?? null,
-            reason: f.reason,
+            reason: f.reason || "Sem motivo especificado",
             amount: Number(f.amount) || 0,
             issued_at: f.issued_at ?? null,
             status: f.status ?? "unpaid",
@@ -782,6 +823,7 @@ export default function CharactersTab() {
         );
       } catch (e) {
         console.warn("Falha a obter multas:", e);
+        // Não mostra erro ao usuário, apenas deixa a lista vazia
         setFines([]);
       } finally {
         setFinesLoading(false);

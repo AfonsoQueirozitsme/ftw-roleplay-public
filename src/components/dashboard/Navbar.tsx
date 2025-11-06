@@ -1,6 +1,6 @@
 // src/components/dashboard/Navbar.tsx
 import React, { useEffect, useRef, useState } from "react";
-import { ShoppingBag, LogIn, User, LayoutDashboard, LogOut, Shield, ChevronDown } from "lucide-react";
+import { ShoppingBag, LogIn, User, LayoutDashboard, LogOut, Shield, ChevronDown, Database } from "lucide-react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 
@@ -194,6 +194,16 @@ const DashboardNavbar: React.FC = () => {
                   >
                     <LayoutDashboard className="w-4 h-4" />
                     <span>Dashboard</span>
+                  </NavLink>
+
+                  <NavLink
+                    role="menuitem"
+                    to="/dashboard/data-management"
+                    onClick={() => setOpen(false)}
+                    className="flex items-center gap-3 px-4 py-3 hover:bg-white/10 transition"
+                  >
+                    <Database className="w-4 h-4" />
+                    <span>Gestão de Dados</span>
                   </NavLink>
 
                   {/* Linha de estado enquanto verifica */}

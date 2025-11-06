@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { listApplications, setApplicationStatus, getApplication, type ApplicationRow } from "@/lib/api/applications";
+import { listApplications, setApplicationStatus, getApplication, type ApplicationRow, type Status } from "@/lib/api/applications";
 import { supabase } from "@/lib/supabase";
 import { Spinner } from "@/components/admin/player/player-common";
 import { UserCircle2, ShieldCheck, CheckCircle, XCircle, HelpCircle } from "lucide-react";
@@ -57,6 +57,8 @@ export default function Candidaturas() {
   const [rows, setRows] = useState<ApplicationRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<"all" | Status>("all");
+  const [searchQuery, setSearchQuery] = useState("");
 
   const [openId, setOpenId] = useState<string | null>(null);
   const [openData, setOpenData] = useState<ApplicationRow | null>(null);
@@ -64,33 +66,67 @@ export default function Candidaturas() {
   const [stats, setStats] = useState<GuildStats | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
     setLoading(true);
-    listApplications({ status: "all", page: 1, limit: 50 })
-      .then((res) => setRows(res.data))
-      .catch((e) => setErro(e?.message ?? "Erro a carregar candidaturas"))
-      .finally(() => setLoading(false));
-  }, []);
+    setErro(null);
+    listApplications({ status: statusFilter, page: 1, limit: 50, q: searchQuery || undefined })
+      .then((res) => {
+        if (!cancelled) setRows(res.data);
+      })
+      .catch((e) => {
+        if (!cancelled) setErro(e?.message ?? "Erro a carregar candidaturas");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [statusFilter, searchQuery]);
 
   useEffect(() => {
-    if (!openId) return;
+    if (!openId) {
+      setOpenData(null);
+      setStats(null);
+      return;
+    }
+    let cancelled = false;
     setOpenLoading(true);
     setStats(null);
     getApplication(openId)
       .then(async (d) => {
+        if (cancelled) return;
         setOpenData(d);
         if (d.discord_id) {
           try {
             const { data, error } = await supabase.functions.invoke("discord-guild-stats", {
               body: { discordId: d.discord_id },
             });
-            if (error) console.error(error);
-            if (data?.ok && data.profile) setStats(data.profile as GuildStats);
+            if (cancelled) return;
+            if (error) {
+              console.error("Erro ao buscar stats do Discord:", error);
+            } else if (data?.ok && data.profile) {
+              setStats(data.profile as GuildStats);
+            }
           } catch (err) {
-            console.warn("discord-guild-stats falhou:", err);
+            if (!cancelled) {
+              console.warn("discord-guild-stats falhou:", err);
+            }
           }
         }
       })
-      .finally(() => setOpenLoading(false));
+      .catch((err) => {
+        if (!cancelled) {
+          console.error("Erro ao carregar candidatura:", err);
+          setErro(err?.message ?? "Erro ao carregar detalhes da candidatura");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setOpenLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [openId]);
 
   const skeleton = useMemo(() => Array.from({ length: 12 }, (_, i) => i), []);
@@ -165,6 +201,34 @@ export default function Candidaturas() {
         <div className="text-sm text-white/60">{sortedRows.length} registo{sortedRows.length === 1 ? "" : "s"}</div>
       </header>
 
+      {/* Filtros */}
+      <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+        <div className="flex-1 min-w-0">
+          <input
+            type="text"
+            placeholder="Pesquisar por nome, email, Discord, personagem..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-[#e53e30]/70"
+          />
+        </div>
+        <div className="flex gap-2">
+          {STATUS_OPTS.map((opt) => (
+            <button
+              key={opt.v}
+              onClick={() => setStatusFilter(opt.v as "all" | Status)}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
+                statusFilter === opt.v
+                  ? "bg-[#e53e30] text-white"
+                  : "bg-white/5 border border-white/10 text-white/70 hover:bg-white/10"
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {erro && <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">{erro}</div>}
 
       <div className="overflow-x-auto rounded-xl border border-white/10">
@@ -222,9 +286,14 @@ export default function Candidaturas() {
                 stats={stats}
                 onClose={() => { setOpenId(null); setOpenData(null); setStats(null); }}
                 onStatus={async (next) => {
-                  await setApplicationStatus(openData.id, next);
-                  setOpenData({ ...openData, status: next });
-                  setRows((r) => r.map((x) => (x.id === openData.id ? { ...x, status: next } : x)));
+                  try {
+                    await setApplicationStatus(openData.id, next);
+                    setOpenData({ ...openData, status: next });
+                    setRows((r) => r.map((x) => (x.id === openData.id ? { ...x, status: next } : x)));
+                  } catch (err) {
+                    console.error("Erro ao atualizar status:", err);
+                    setErro(err instanceof Error ? err.message : "Erro ao atualizar status da candidatura");
+                  }
                 }}
                 computeTrust={computeTrustScore}
               />

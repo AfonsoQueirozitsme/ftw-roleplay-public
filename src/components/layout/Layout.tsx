@@ -3,6 +3,7 @@ import { Outlet } from "react-router-dom";
 import Background from "./Background";
 import Navbar from "./Navbar";
 import Footer from "./Footer";
+import CookieConsent from "./CookieConsent";
 import TicketSidebar from '@/components/admin/TicketSidebar';
 
 
@@ -15,6 +16,7 @@ return (
 <Outlet />
 </main>
 <Footer />
+<CookieConsent />
 <TicketSidebar />
 </div>
 );

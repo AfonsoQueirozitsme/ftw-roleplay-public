@@ -32,6 +32,8 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({ className = "" }) => 
     const nome = (fd.get("nome") as string)?.trim();
     const personagem = (fd.get("personagem") as string)?.trim();
     const motivacao = (fd.get("motivacao") as string)?.trim();
+    const privacyConsent = fd.get("privacy_consent") === "on";
+    const termsConsent = fd.get("terms_consent") === "on";
 
     if (!nome || !email || !personagem || !motivacao) {
       setErrors("Preenche todos os campos obrigatórios.");
@@ -39,6 +41,14 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({ className = "" }) => 
     }
     if (!isValidEmail(email)) {
       setErrors("Insere um e-mail válido.");
+      return;
+    }
+    if (!privacyConsent) {
+      setErrors("É necessário aceitar o consentimento para tratamento de dados pessoais.");
+      return;
+    }
+    if (!termsConsent) {
+      setErrors("É necessário aceitar os Termos de Utilização.");
       return;
     }
 
@@ -216,6 +226,59 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({ className = "" }) => 
                 placeholder="Explica em poucas linhas a tua motivação."
                 className={`w-full px-5 py-4 bg-[#151515] border border-[#6c6c6c] text-[#fbfbfb] placeholder-white/40 resize-y rounded-none ${ring}`}
               />
+            </div>
+
+            {/* Consentimento RGPD */}
+            <div className="md:col-span-2 space-y-4 rounded-xl border border-white/15 bg-white/5 p-6">
+              <h3 className="text-lg font-semibold mb-3">Consentimento e Privacidade</h3>
+              
+              <div className="space-y-3">
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    name="privacy_consent"
+                    required
+                    className="mt-1 w-5 h-5 rounded border-white/20 bg-white/5 text-[#e53e30] focus:ring-2 focus:ring-[#e53e30]/70"
+                  />
+                  <div className="flex-1 text-sm">
+                    <span className="font-semibold">Consentimento para tratamento de dados pessoais</span>
+                    <p className="text-white/70 mt-1">
+                      Aceito que os meus dados pessoais sejam tratados pela FTW Roleplay conforme descrito na{" "}
+                      <a href="/privacy" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 hover:text-white">
+                        Política de Privacidade
+                      </a>
+                      .
+                    </p>
+                  </div>
+                </label>
+
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    name="terms_consent"
+                    required
+                    className="mt-1 w-5 h-5 rounded border-white/20 bg-white/5 text-[#e53e30] focus:ring-2 focus:ring-[#e53e30]/70"
+                  />
+                  <div className="flex-1 text-sm">
+                    <span className="font-semibold">Aceitação dos Termos de Utilização</span>
+                    <p className="text-white/70 mt-1">
+                      Li e aceito os{" "}
+                      <a href="/terms" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 hover:text-white">
+                        Termos de Utilização
+                      </a>
+                      {" "}e as regras do servidor.
+                    </p>
+                  </div>
+                </label>
+              </div>
+
+              <p className="text-xs text-white/50 leading-relaxed mt-4">
+                <strong>Nota:</strong> Tens direito de acesso, retificação, eliminação e oposição aos teus dados.{" "}
+                <a href="/dashboard/data-management" className="underline underline-offset-2 hover:text-white">
+                  Gerir dados
+                </a>
+                .
+              </p>
             </div>
 
             {/* Ações */}

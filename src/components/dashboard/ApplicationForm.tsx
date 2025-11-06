@@ -166,6 +166,8 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({
     const nome = (fd.get("nome") as string)?.trim();
     const personagem = (fd.get("personagem") as string)?.trim();
     const motivacao = (fd.get("motivacao") as string)?.trim();
+    const privacyConsent = fd.get("privacy_consent") === "on";
+    const termsConsent = fd.get("terms_consent") === "on";
 
     const fieldErrs: { [k: string]: string | null } = {};
     if (!nome) fieldErrs.nome = "Preenche o teu nome.";
@@ -176,6 +178,16 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({
 
     if (!discordVerified || !(discordInfo || (lockDiscord && presetDiscord?.id))) {
       fieldErrs.discordId = "Valida primeiro o teu Discord.";
+    }
+
+    if (!privacyConsent) {
+      setGlobalError("É necessário aceitar o consentimento para tratamento de dados pessoais.");
+      return;
+    }
+
+    if (!termsConsent) {
+      setGlobalError("É necessário aceitar os Termos de Utilização.");
+      return;
     }
 
     setErrors(fieldErrs);
@@ -451,9 +463,63 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({
               <a href="#topo" className="px-6 py-4 rounded-xl font-semibold bg-white/10 hover:bg-white/20 border border-white/15 transition inline-flex items-center gap-2">
                 <ChevronUp className="size-4" /> Voltar ao topo
               </a>
-              <p className="text-xs text-white/50 ml-auto">Ao enviar, aceitas as regras do servidor e o tratamento dos teus dados para moderação.</p>
             </div>
           </div>
+
+          {/* Aviso de privacidade e consentimento RGPD */}
+          <SectionCard title="Consentimento e Privacidade">
+            <div className="space-y-4">
+              <div className="rounded-lg border border-white/10 bg-white/5 p-4">
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    name="privacy_consent"
+                    required
+                    className="mt-1 w-5 h-5 rounded border-white/20 bg-white/5 text-[#e53e30] focus:ring-2 focus:ring-[#e53e30]/70"
+                  />
+                  <div className="flex-1 text-sm">
+                    <span className="font-semibold">Consentimento para tratamento de dados pessoais</span>
+                    <p className="text-white/70 mt-1">
+                      Aceito que os meus dados pessoais (nome, e-mail, Discord ID, personagem e motivação) sejam tratados pela FTW Roleplay para fins de gestão de candidaturas, comunicação e moderação, conforme descrito na{" "}
+                      <a href="/privacy" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 hover:text-white">
+                        Política de Privacidade
+                      </a>
+                      . Posso retirar este consentimento a qualquer momento.
+                    </p>
+                  </div>
+                </label>
+              </div>
+
+              <div className="rounded-lg border border-white/10 bg-white/5 p-4">
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    name="terms_consent"
+                    required
+                    className="mt-1 w-5 h-5 rounded border-white/20 bg-white/5 text-[#e53e30] focus:ring-2 focus:ring-[#e53e30]/70"
+                  />
+                  <div className="flex-1 text-sm">
+                    <span className="font-semibold">Aceitação dos Termos de Utilização</span>
+                    <p className="text-white/70 mt-1">
+                      Li e aceito os{" "}
+                      <a href="/terms" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 hover:text-white">
+                        Termos de Utilização
+                      </a>
+                      {" "}e as regras do servidor.
+                    </p>
+                  </div>
+                </label>
+              </div>
+
+              <p className="text-xs text-white/50 leading-relaxed">
+                <strong>Nota:</strong> Os dados são conservados durante o período necessário para gestão da candidatura e histórico de acesso (máximo 24 meses). Tens direito de acesso, retificação, eliminação e oposição ao tratamento dos teus dados. Para exercer estes direitos, contacta-nos através dos canais oficiais ou acede à{" "}
+                <a href="/dashboard/data-management" className="underline underline-offset-2 hover:text-white">
+                  página de gestão de dados
+                </a>
+                .
+              </p>
+            </div>
+          </SectionCard>
         </form>
       </div>
     </section>
