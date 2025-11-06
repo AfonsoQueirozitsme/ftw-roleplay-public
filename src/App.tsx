@@ -96,7 +96,7 @@ export default function App() {
         <Route index element={<Navigate to="reports" replace />} />
         <Route path="reports" element={<ReportsTab />} />
         <Route path="early-access" element={<EarlyAccessTab />} />
-        <Route path="applications" element={<MyApplicationsTab />} />
+        <Route path="applications" element={<Navigate to="/dashboard/early-access" replace />} />
         <Route path="characters" element={<CharactersTab />} />
         <Route path="rules" element={<RulesTab />} />
         <Route path="data-management" element={<DataManagementTab />} />

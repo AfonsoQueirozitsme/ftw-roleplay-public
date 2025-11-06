@@ -145,12 +145,6 @@ function ApplicationCard({ app, onToggleDetails }: { app: ApplicationRow; onTogg
                   <span className="text-white/60">Data de envio:</span>
                   <span className="text-white/90">{formatDate(app.created_at || null)}</span>
                 </div>
-                {app.updated_at && app.updated_at !== app.created_at && (
-                  <div className="flex justify-between">
-                    <span className="text-white/60">Última atualização:</span>
-                    <span className="text-white/90">{formatDate(app.updated_at || null)}</span>
-                  </div>
-                )}
                 <div className="flex justify-between">
                   <span className="text-white/60">ID:</span>
                   <span className="text-white/70 text-xs font-mono">{app.id.slice(0, 8)}...</span>

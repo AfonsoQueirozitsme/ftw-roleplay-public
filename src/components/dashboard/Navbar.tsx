@@ -135,14 +135,6 @@ const DashboardNavbar: React.FC = () => {
                 to="/dashboard/early-access"
                 className={({ isActive }) => `${linkBase} ${isActive ? linkActive : linkIdle}`}
               >
-                Early Access
-              </NavLink>
-            </li>
-            <li>
-              <NavLink
-                to="/dashboard/applications"
-                className={({ isActive }) => `${linkBase} ${isActive ? linkActive : linkIdle}`}
-              >
                 Candidaturas
               </NavLink>
             </li>

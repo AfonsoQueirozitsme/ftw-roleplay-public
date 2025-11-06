@@ -1,15 +1,319 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
-import { UserCircle2, Download, Trash2, Edit, AlertTriangle, CheckCircle, Loader2 } from "lucide-react";
+import { UserCircle2, Download, Trash2, Edit, AlertTriangle, CheckCircle, Loader2, X, AlertCircle } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 import UltraSpinner from "@/components/layout/Spinner";
 
 const RING = "focus:outline-none focus:ring-2 focus:ring-[#e53e30]/70 focus:ring-offset-2 focus:ring-offset-[#151515]";
+
+// Modal personalizado para retificação
+function RectificationModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+  if (!open) return null;
+
+  return (
+    <AnimatePresence>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80"
+        onClick={onClose}
+      >
+        <motion.div
+          initial={{ scale: 0.95, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          exit={{ scale: 0.95, opacity: 0 }}
+          onClick={(e) => e.stopPropagation()}
+          className="relative w-full max-w-md rounded-xl border border-white/10 bg-[#151515] p-6 text-white"
+        >
+          <button
+            onClick={onClose}
+            className="absolute top-4 right-4 p-2 rounded-lg hover:bg-white/10 transition"
+          >
+            <X className="w-5 h-5" />
+          </button>
+
+          <div className="space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="p-3 rounded-lg bg-white/5">
+                <Edit className="w-6 h-6 text-[#e53e30]" />
+              </div>
+              <h2 className="text-xl font-semibold">Solicitar Retificação de Dados</h2>
+            </div>
+
+            <div className="space-y-3 text-sm text-white/80">
+              <p>
+                Para solicitar a correção de dados incorretos, envia um email para{" "}
+                <strong className="text-white">admin@ftwrp.example</strong> com:
+              </p>
+              <ul className="list-disc pl-5 space-y-1">
+                <li>O teu email de conta</li>
+                <li>Os dados que queres corrigir</li>
+                <li>Os valores corretos</li>
+              </ul>
+            </div>
+
+            <div className="flex gap-3 pt-2">
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText("admin@ftwrp.example");
+                  alert("Email copiado para a área de transferência!");
+                }}
+                className="flex-1 px-4 py-2 rounded-lg bg-[#e53e30] text-white font-semibold hover:brightness-110 transition"
+              >
+                Copiar Email
+              </button>
+              <button
+                onClick={onClose}
+                className="px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white font-medium hover:bg-white/10 transition"
+              >
+                Fechar
+              </button>
+            </div>
+          </div>
+        </motion.div>
+      </motion.div>
+    </AnimatePresence>
+  );
+}
+
+// Modal personalizado para eliminação com confirmação dupla
+function DeletionModal({
+  open,
+  onClose,
+  onConfirm,
+  loading,
+  discordUsername,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+  loading: boolean;
+  discordUsername: string | null;
+}) {
+  const [step, setStep] = useState<1 | 2>(1);
+  const [discordNameInput, setDiscordNameInput] = useState("");
+  const [confirmationText, setConfirmationText] = useState("");
+  const [errors, setErrors] = useState<{ discord?: string; confirmation?: string }>({});
+
+  const requiredText = "sim, pretendo eliminar os meus dados";
+
+  useEffect(() => {
+    if (!open) {
+      setStep(1);
+      setDiscordNameInput("");
+      setConfirmationText("");
+      setErrors({});
+    }
+  }, [open]);
+
+  const handleStep1Next = () => {
+    const newErrors: typeof errors = {};
+    
+    if (!discordUsername) {
+      newErrors.discord = "Nome do Discord não encontrado. Contacta o suporte.";
+    } else if (discordNameInput.trim().toLowerCase() !== discordUsername.toLowerCase()) {
+      newErrors.discord = "O nome do Discord não corresponde. Verifica e tenta novamente.";
+    }
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      return;
+    }
+
+    setErrors({});
+    setStep(2);
+  };
+
+  const handleStep2Confirm = () => {
+    const newErrors: typeof errors = {};
+    
+    if (confirmationText.trim().toLowerCase() !== requiredText.toLowerCase()) {
+      newErrors.confirmation = `Deves escrever exatamente: "${requiredText}"`;
+    }
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      return;
+    }
+
+    onConfirm();
+  };
+
+  if (!open) return null;
+
+  return (
+    <AnimatePresence>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80"
+        onClick={onClose}
+      >
+        <motion.div
+          initial={{ scale: 0.95, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          exit={{ scale: 0.95, opacity: 0 }}
+          onClick={(e) => e.stopPropagation()}
+          className="relative w-full max-w-lg rounded-xl border-2 border-rose-500/50 bg-[#151515] p-6 text-white"
+        >
+          <button
+            onClick={onClose}
+            disabled={loading}
+            className="absolute top-4 right-4 p-2 rounded-lg hover:bg-white/10 transition disabled:opacity-50"
+          >
+            <X className="w-5 h-5" />
+          </button>
+
+          <div className="space-y-6">
+            {/* Header */}
+            <div className="flex items-center gap-3">
+              <div className="p-3 rounded-lg bg-rose-500/20">
+                <AlertCircle className="w-6 h-6 text-rose-300" />
+              </div>
+              <div>
+                <h2 className="text-xl font-semibold text-rose-200">Eliminar Conta e Dados</h2>
+                <p className="text-sm text-white/60">Passo {step} de 2</p>
+              </div>
+            </div>
+
+            {/* Aviso */}
+            <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 p-4">
+              <p className="text-sm font-semibold text-rose-200 mb-2">⚠️ Esta ação é IRREVERSÍVEL</p>
+              <ul className="text-xs text-rose-200/80 space-y-1 list-disc pl-5">
+                <li>A eliminação é permanente e não pode ser revertida</li>
+                <li>Todos os dados da conta serão eliminados</li>
+                <li>Candidaturas e histórico serão removidos</li>
+                <li>Não poderás recuperar acesso à conta</li>
+              </ul>
+            </div>
+
+            {/* Step 1: Confirmar nome do Discord */}
+            {step === 1 && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="space-y-4"
+              >
+                <div>
+                  <label className="block text-sm font-medium mb-2">
+                    Escreve o teu nome do Discord para confirmar:
+                  </label>
+                  <input
+                    type="text"
+                    value={discordNameInput}
+                    onChange={(e) => {
+                      setDiscordNameInput(e.target.value);
+                      setErrors((prev) => ({ ...prev, discord: undefined }));
+                    }}
+                    placeholder={discordUsername || "Nome do Discord"}
+                    className={`w-full px-4 py-3 rounded-lg bg-white/5 border ${
+                      errors.discord ? "border-rose-500" : "border-white/10"
+                    } text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-rose-500/50 ${RING}`}
+                    disabled={loading || !discordUsername}
+                  />
+                  {errors.discord && (
+                    <p className="mt-1 text-xs text-rose-400">{errors.discord}</p>
+                  )}
+                  {!discordUsername && (
+                    <p className="mt-1 text-xs text-amber-400">
+                      Nome do Discord não encontrado. Contacta o suporte para eliminar a conta.
+                    </p>
+                  )}
+                </div>
+
+                <div className="flex gap-3 pt-2">
+                  <button
+                    onClick={onClose}
+                    disabled={loading}
+                    className="flex-1 px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white font-medium hover:bg-white/10 transition disabled:opacity-50"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={handleStep1Next}
+                    disabled={loading || !discordUsername}
+                    className="flex-1 px-4 py-2 rounded-lg bg-amber-600 text-white font-semibold hover:bg-amber-700 transition disabled:opacity-50"
+                  >
+                    Continuar
+                  </button>
+                </div>
+              </motion.div>
+            )}
+
+            {/* Step 2: Confirmação final */}
+            {step === 2 && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="space-y-4"
+              >
+                <div>
+                  <label className="block text-sm font-medium mb-2">
+                    Escreve <strong className="text-rose-300">"{requiredText}"</strong> para confirmar:
+                  </label>
+                  <input
+                    type="text"
+                    value={confirmationText}
+                    onChange={(e) => {
+                      setConfirmationText(e.target.value);
+                      setErrors((prev) => ({ ...prev, confirmation: undefined }));
+                    }}
+                    placeholder={requiredText}
+                    className={`w-full px-4 py-3 rounded-lg bg-white/5 border ${
+                      errors.confirmation ? "border-rose-500" : "border-white/10"
+                    } text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-rose-500/50 ${RING}`}
+                    disabled={loading}
+                  />
+                  {errors.confirmation && (
+                    <p className="mt-1 text-xs text-rose-400">{errors.confirmation}</p>
+                  )}
+                </div>
+
+                <div className="flex gap-3 pt-2">
+                  <button
+                    onClick={() => setStep(1)}
+                    disabled={loading}
+                    className="flex-1 px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white font-medium hover:bg-white/10 transition disabled:opacity-50"
+                  >
+                    Voltar
+                  </button>
+                  <button
+                    onClick={handleStep2Confirm}
+                    disabled={loading || confirmationText.trim().toLowerCase() !== requiredText.toLowerCase()}
+                    className="flex-1 px-4 py-2 rounded-lg bg-rose-600 text-white font-semibold hover:bg-rose-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  >
+                    {loading ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        A eliminar...
+                      </>
+                    ) : (
+                      <>
+                        <Trash2 className="w-4 h-4" />
+                        Eliminar Definitivamente
+                      </>
+                    )}
+                  </button>
+                </div>
+              </motion.div>
+            )}
+          </div>
+        </motion.div>
+      </motion.div>
+    </AnimatePresence>
+  );
+}
 
 export default function DataManagementTab() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [userData, setUserData] = useState<any>(null);
   const [loadingData, setLoadingData] = useState(false);
+  const [rectificationModalOpen, setRectificationModalOpen] = useState(false);
+  const [deletionModalOpen, setDeletionModalOpen] = useState(false);
+  const [discordUsername, setDiscordUsername] = useState<string | null>(null);
 
   const loadUserData = useCallback(async () => {
     setLoadingData(true);
@@ -22,11 +326,26 @@ export default function DataManagementTab() {
         return;
       }
 
+      // Buscar nome do Discord
+      const discordId = extractDiscordId(user);
+      if (discordId) {
+        try {
+          const { data: lookupData } = await supabase.functions.invoke("discord-lookup", {
+            body: { discordId },
+          });
+          if (lookupData?.ok && lookupData?.user) {
+            setDiscordUsername(lookupData.user.username || lookupData.user.global_name || null);
+          }
+        } catch (err) {
+          console.warn("Erro ao buscar nome do Discord:", err);
+        }
+      }
+
       // Buscar dados da aplicação se existirem
       const { data: apps } = await supabase
         .from("applications")
         .select("*")
-        .or(`email.eq.${user.email},discord_id.eq.${extractDiscordId(user)}`)
+        .or(`email.eq.${user.email},discord_id.eq.${discordId || ""}`)
         .order("created_at", { ascending: false });
 
       setUserData({
@@ -92,17 +411,6 @@ export default function DataManagementTab() {
   }, [userData, loadUserData]);
 
   const handleRequestDeletion = useCallback(async () => {
-    const confirmed = window.confirm(
-      "Tens a certeza que queres solicitar a eliminação dos teus dados?\n\n" +
-      "Esta ação irá:\n" +
-      "- Eliminar a tua conta de autenticação\n" +
-      "- Eliminar todas as candidaturas associadas\n" +
-      "- Eliminar todos os dados pessoais\n\n" +
-      "Esta ação é IRREVERSÍVEL. Podes continuar?"
-    );
-
-    if (!confirmed) return;
-
     setLoading(true);
     setMessage(null);
     try {
@@ -136,23 +444,9 @@ export default function DataManagementTab() {
         type: "error",
         text: err instanceof Error ? err.message : "Erro ao eliminar dados. Contacta o suporte.",
       });
+      setDeletionModalOpen(false);
     } finally {
       setLoading(false);
-    }
-  }, []);
-
-  const handleRequestRectification = useCallback(async () => {
-    setMessage(null);
-    const email = prompt(
-      "Para solicitar a retificação de dados, envia um email para admin@ftwrp.example com:\n" +
-      "- O teu email de conta\n" +
-      "- Os dados que queres corrigir\n" +
-      "- Os valores corretos\n\n" +
-      "Ou escreve aqui o teu email para copiares:"
-    );
-    if (email) {
-      navigator.clipboard.writeText("admin@ftwrp.example");
-      setMessage({ type: "success", text: "Email copiado para a área de transferência." });
     }
   }, []);
 
@@ -237,7 +531,7 @@ export default function DataManagementTab() {
             </div>
           </div>
           <button
-            onClick={handleRequestRectification}
+            onClick={() => setRectificationModalOpen(true)}
             className={`w-full px-4 py-3 rounded-lg bg-white/5 border border-white/10 text-white font-semibold hover:bg-white/10 transition ${RING}`}
           >
             <span className="inline-flex items-center gap-2">
@@ -270,7 +564,10 @@ export default function DataManagementTab() {
             </ul>
           </div>
           <button
-            onClick={handleRequestDeletion}
+            onClick={() => {
+              loadUserData(); // Carregar dados para obter o nome do Discord
+              setDeletionModalOpen(true);
+            }}
             disabled={loading}
             className={`w-full px-4 py-3 rounded-lg bg-rose-600 text-white font-semibold hover:bg-rose-700 transition disabled:opacity-60 ${RING}`}
           >
@@ -333,7 +630,16 @@ export default function DataManagementTab() {
           </p>
         </div>
       </div>
+
+      {/* Modals */}
+      <RectificationModal open={rectificationModalOpen} onClose={() => setRectificationModalOpen(false)} />
+      <DeletionModal
+        open={deletionModalOpen}
+        onClose={() => setDeletionModalOpen(false)}
+        onConfirm={handleRequestDeletion}
+        loading={loading}
+        discordUsername={discordUsername}
+      />
     </div>
   );
 }
-

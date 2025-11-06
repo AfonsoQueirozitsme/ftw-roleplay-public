@@ -1,0 +1,200 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* FTW Roleplay — Paleta sólida (Preto/Branco/Chumbo) + Destaques Vermelhos */
+
+/* Tipografias do projeto */
+@import url('https://fonts.googleapis.com/css2?family=Goldman:wght@400;700&family=Montserrat:wght@300;400;500;600;700;800;900&display=swap');
+
+@layer base {
+  :root {
+    /* Paleta base (HSL para compat com Tailwind/shadcn) */
+    --ftw-bg: 0 0% 8%;           /* #151515 */
+    --ftw-secondary: 0 0% 42%;   /* #6c6c6c */
+    --ftw-tertiary: 0 0% 98%;    /* #fbfbfb */
+    --ftw-notes: 7 76% 54%;      /* ~ #e53e30 */
+
+    /* Tokens padrão do sistema (mapeados à paleta FTW) */
+    --background: var(--ftw-bg);
+    --background-secondary: 0 0% 10%;
+    --background-tertiary: 0 0% 12%;
+    --foreground: var(--ftw-tertiary);
+
+    --primary: var(--ftw-notes);
+    --primary-foreground: var(--ftw-tertiary);
+
+    --secondary: var(--ftw-secondary);
+    --secondary-foreground: var(--ftw-tertiary);
+
+    --card: var(--ftw-bg);
+    --card-foreground: var(--ftw-tertiary);
+
+    --muted: 0 0% 20%;
+    --muted-foreground: 0 0% 65%;
+
+    --accent: var(--ftw-tertiary);
+    --accent-foreground: var(--ftw-bg);
+
+    --border: 0 0% 18%;
+    --input: 0 0% 12%;
+    --ring: var(--ftw-notes);
+
+    --popover: var(--ftw-bg);
+    --popover-foreground: var(--ftw-tertiary);
+
+    --destructive: var(--ftw-notes);
+    --destructive-foreground: var(--ftw-tertiary);
+
+    /* Raio e transições */
+    --radius: 0rem;     /* <- tudo quadrado */
+    --radius-lg: 0rem;
+    --radius-xl: 0rem;
+    --transition: all 0.35s cubic-bezier(0.23, 1, 0.32, 1);
+    --transition-fast: all 0.2s cubic-bezier(0.23, 1, 0.32, 1);
+
+    /* Gradiente removido (fundo liso) */
+    --gradient-hero: none;
+
+    /* Sombras */
+    --shadow-sm: 0 2px 8px hsla(0, 0%, 0%, 0.12);
+    --shadow-md: 0 6px 20px hsla(0, 0%, 0%, 0.18);
+    --shadow-lg: 0 10px 32px hsla(0, 0%, 0%, 0.24);
+  }
+
+  .dark {
+    --background: var(--ftw-bg);
+    --foreground: var(--ftw-tertiary);
+    --card: var(--ftw-bg);
+    --card-foreground: var(--ftw-tertiary);
+    --popover: var(--ftw-bg);
+    --popover-foreground: var(--ftw-tertiary);
+    --primary: var(--ftw-notes);
+    --primary-foreground: var(--ftw-tertiary);
+    --secondary: var(--ftw-secondary);
+    --secondary-foreground: var(--ftw-tertiary);
+    --muted: 0 0% 16%;
+    --muted-foreground: 0 0% 64%;
+    --accent: var(--ftw-tertiary);
+    --accent-foreground: var(--ftw-bg);
+    --destructive: var(--ftw-notes);
+    --destructive-foreground: var(--ftw-tertiary);
+    --border: 0 0% 18%;
+    --input: 0 0% 12%;
+    --ring: var(--ftw-notes);
+  }
+
+  * { @apply border-border; }
+
+  /* reset global de border-radius */
+  *,
+  *::before,
+  *::after {
+    border-radius: 0 !important;
+  }
+
+  html {
+    @apply scroll-smooth;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Tipografia base: Montserrat */
+  body {
+    @apply bg-background text-foreground overflow-x-hidden;
+    font-family: Montserrat, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, 'Helvetica Neue', Arial, 'Noto Sans', 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', sans-serif;
+    text-rendering: optimizeLegibility;
+
+    /* fundo sólido (sem gradientes/padrões) */
+    background-color: hsl(var(--ftw-bg));
+    background-image: none;
+  }
+}
+
+@layer components {
+  /* Utilitários de fonte */
+  .font-primary { font-family: Montserrat, system-ui, sans-serif; }
+  .font-notes { font-family: Goldman, system-ui, sans-serif; }
+
+  /* Cards discretos (sem vidro/neon) */
+  .card-modern {
+    @apply bg-card border border-[hsl(0_0%_18%)] rounded-none p-8;
+    box-shadow: var(--shadow-md);
+  }
+  .card-modern:hover {
+    box-shadow: var(--shadow-lg);
+    transform: translateY(-1px);
+    transition: var(--transition);
+  }
+
+  /* Botões */
+  .btn-primary {
+    @apply inline-flex items-center justify-center rounded-none px-6 py-3 font-semibold;
+    color: hsl(var(--primary-foreground));
+    background-color: hsl(var(--primary));
+    transition: var(--transition);
+    box-shadow: var(--shadow-md);
+  }
+  .btn-primary:hover { filter: brightness(0.95); transform: translateY(-1px); }
+
+  .btn-outline {
+    @apply inline-flex items-center justify-center rounded-none px-5 py-2.5 font-medium;
+    color: hsl(var(--ftw-tertiary));
+    border: 1px solid hsl(var(--border));
+    background-color: transparent;
+    transition: var(--transition);
+  }
+  .btn-outline:hover {
+    border-color: hsl(var(--ftw-tertiary));
+    background-color: hsla(0,0%,100%,0.06);
+  }
+
+  /* Títulos e texto */
+  .title-notes {
+    @apply font-notes font-bold leading-tight;
+    color: hsl(var(--ftw-notes));
+  }
+  .title-xl { @apply title-notes text-6xl md:text-7xl; }
+  .title-lg { @apply title-notes text-4xl md:text-5xl; }
+  .title-md { @apply title-notes text-2xl md:text-3xl; }
+
+  .subtitle {
+    @apply font-primary text-base md:text-lg;
+    color: hsl(var(--ftw-tertiary) / 0.7);
+  }
+
+  /* Navbar */
+  .nav-wrap { @apply w-full h-16 border-b; border-color: hsl(var(--border)); background-color: hsl(var(--ftw-bg)); }
+  .nav-logo { @apply flex items-center gap-2; }
+  .nav-links { @apply flex items-center gap-6; }
+  .nav-link {
+    @apply font-primary text-sm transition-colors;
+    color: hsl(var(--ftw-secondary));
+  }
+  .nav-link:hover { color: hsl(var(--ftw-tertiary)); }
+  .nav-enter {
+    @apply inline-flex items-center gap-2 font-semibold;
+    color: hsl(var(--ftw-notes));
+  }
+
+  /* Divisores / hr (terciária) */
+  .divider { @apply h-px w-full; background-color: hsl(var(--ftw-tertiary) / 0.8); }
+
+  /* Marquee */
+  .marquee {
+    @apply relative h-12 overflow-hidden flex items-center justify-center;
+    color: hsl(var(--ftw-tertiary));
+  }
+  .marquee-item { @apply mx-8 font-extrabold tracking-wider whitespace-nowrap leading-none; }
+
+  /* Scrollbar discreta (quadrada) */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: hsl(var(--background-secondary)); }
+  ::-webkit-scrollbar-thumb { background: hsl(var(--ftw-secondary)); border-radius: 0; }
+  ::-webkit-scrollbar-thumb:hover { background: hsl(var(--ftw-secondary) / 0.85); }
+
+  /* Utilitários extra */
+  .focus-ftw { @apply ring-2 ring-offset-2; --tw-ring-color: hsl(var(--ring)); --tw-ring-offset-color: hsl(var(--background)); }
+  .no-sides { @apply w-full; } /* Full-bleed (sem max-width nem padding lateral) */
+}
+

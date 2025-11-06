@@ -6,7 +6,6 @@ export type Status = "pending" | "approved" | "rejected";
 export type ApplicationRow = {
   id: string;
   created_at: string | null;
-  updated_at: string | null;
 
   nome: string | null;
   email: string | null;
@@ -31,7 +30,7 @@ export type ListParams = {
 
 /** Colunas explícitas (evita surpresas do "*") - apenas campos que existem na tabela */
 const COLS =
-  "id,created_at,updated_at,nome,email,personagem,motivacao,status,discord_id,discord_username,user_id";
+  "id,created_at,nome,email,personagem,motivacao,status,discord_id,discord_username,user_id";
 
 /** Lista com filtros e paginação */
 export async function listApplications(params: ListParams) {

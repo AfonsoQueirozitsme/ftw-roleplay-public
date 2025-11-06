@@ -56,7 +56,6 @@ export interface Database {
           motivacao: string | null
           user_id: string | null
           created_at: string | null
-          updated_at: string | null
         }
         Insert: {
           id?: string
@@ -69,7 +68,6 @@ export interface Database {
           motivacao?: string | null
           user_id?: string | null
           created_at?: string | null
-          updated_at?: string | null
         }
         Update: {
           id?: string
@@ -82,7 +80,6 @@ export interface Database {
           motivacao?: string | null
           user_id?: string | null
           created_at?: string | null
-          updated_at?: string | null
         }
       }
       events: {
