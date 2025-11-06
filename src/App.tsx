@@ -19,6 +19,7 @@ import EarlyAccessTab from "@/pages/dashboard/EarlyAccessTab";
 import RulesTab from "@/pages/dashboard/RulesTab";
 import CharactersTab from "@/pages/dashboard/CharactersTab";
 import DataManagementTab from "@/pages/dashboard/DataManagementTab";
+import VipTab from "@/pages/dashboard/VipTab";
 
 /* — Páginas estáticas — */
 import Terms from "@/pages/static/Terms";
@@ -99,6 +100,7 @@ export default function App() {
         <Route path="characters" element={<CharactersTab />} />
         <Route path="rules" element={<RulesTab />} />
         <Route path="data-management" element={<DataManagementTab />} />
+        <Route path="vip" element={<VipTab />} />
         <Route path="*" element={<NotFound />} />
       </Route>
 

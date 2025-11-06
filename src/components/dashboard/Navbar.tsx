@@ -154,6 +154,14 @@ const DashboardNavbar: React.FC = () => {
                 Regras & Info
               </NavLink>
             </li>
+            <li>
+              <NavLink
+                to="/dashboard/vip"
+                className={({ isActive }) => `${linkBase} ${isActive ? linkActive : linkIdle}`}
+              >
+                VIP
+              </NavLink>
+            </li>
           </ul>
         </nav>
 
