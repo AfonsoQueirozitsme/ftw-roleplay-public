@@ -53,40 +53,38 @@ const DashboardNavbar: React.FC = () => {
   async function refreshPermsOnOpen() {
     setChecking(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { setIsStaff(false); return; }
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      
+      if (userError || !user) { 
+        setIsStaff(false); 
+        return; 
+      }
 
-      // tentar obter discord_id da sessão (se existir)
-      const identities: any[] = (user as any)?.identities || [];
-      const disc = identities.find((i) => i.provider === "discord");
-      const meta: any = (user as any)?.user_metadata || {};
-      const discord_id =
-        disc?.identity_data?.sub || disc?.id || meta?.provider_id || meta?.sub || null;
-
-      // opcional: sincroniza com Discord (se a function existir)
+      // Usar o sistema unificado de permissões (user_roles -> permissions)
       try {
-        if (discord_id) {
-          await supabase.functions.invoke("discord-sync", {
-            body: { user_id: user.id, discord_id },
-          });
+        const { getUserPermissions } = await import("@/shared/permissions");
+        const permissions = await getUserPermissions(user.id);
+        setIsStaff(computeIsStaff(permissions));
+      } catch (permError) {
+        console.warn("Falha a ler permissões via getUserPermissions, tentando fallback staff_perms:", permError);
+        
+        // Fallback para staff_perms se o sistema de roles falhar
+        const { data, error } = await supabase
+          .from("staff_perms")
+          .select("perms")
+          .eq("user_id", user.id)
+          .maybeSingle();
+
+        if (error) {
+          console.warn("Falha a ler staff_perms:", error);
+          setIsStaff(false);
+        } else {
+          setIsStaff(computeIsStaff((data?.perms as string[]) ?? []));
         }
-      } catch {
-        // se a função não existir/config não faz mal; seguimos
       }
-
-      // ler staff_perms e decidir visibilidade do botão Admin
-      const { data, error } = await supabase
-        .from("staff_perms")
-        .select("perms")
-        .eq("user_id", user.id)
-        .maybeSingle();
-
-      if (error) {
-        console.warn("Falha a ler staff_perms:", error);
-        setIsStaff(false);
-      } else {
-        setIsStaff(computeIsStaff((data?.perms as string[]) ?? []));
-      }
+    } catch (err) {
+      console.error("Erro inesperado ao verificar permissões:", err);
+      setIsStaff(false);
     } finally {
       setChecking(false);
     }
@@ -138,6 +136,14 @@ const DashboardNavbar: React.FC = () => {
                 className={({ isActive }) => `${linkBase} ${isActive ? linkActive : linkIdle}`}
               >
                 Early Access
+              </NavLink>
+            </li>
+            <li>
+              <NavLink
+                to="/dashboard/applications"
+                className={({ isActive }) => `${linkBase} ${isActive ? linkActive : linkIdle}`}
+              >
+                Candidaturas
               </NavLink>
             </li>
             <li>

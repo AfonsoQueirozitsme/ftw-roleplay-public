@@ -344,6 +344,7 @@ function useStaffPerms() {
 
     const load = async () => {
       try {
+        setLoading(true);
         const {
           data: { user },
           error,
@@ -351,40 +352,98 @@ function useStaffPerms() {
 
         if (error) {
           console.error("Failed to fetch auth user for perms", error);
+          if (!cancelled) {
+            setPerms([]);
+            setLoading(false);
+          }
+          return;
         }
 
         if (cancelled) return;
 
         if (!user) {
-          setPerms([]);
-          clearPermsCache();
+          if (!cancelled) {
+            setPerms([]);
+            clearPermsCache();
+            setLoading(false);
+          }
           return;
         }
 
         const cached = readPermsCache();
         const fresh = cached && cached.user_id === user.id && Date.now() - cached.cached_at < PERMS_TTL_MS;
 
-        if (fresh) {
-          setPerms(cached!.perms);
+        if (fresh && cached) {
+          if (!cancelled) {
+            setPerms(cached.perms);
+            setLoading(false);
+          }
           return;
         }
 
+        // Limpar cache antigo e buscar permissões frescas
         clearPermissionsCache(user.id);
-        const permissions = await getUserPermissions(user.id);
-        if (cancelled) return;
-        setPerms(permissions);
-        writePermsCache({ user_id: user.id, perms: permissions, cached_at: Date.now() });
+        try {
+          const permissions = await getUserPermissions(user.id);
+          if (cancelled) return;
+          
+          if (!cancelled) {
+            setPerms(permissions);
+            writePermsCache({ user_id: user.id, perms: permissions, cached_at: Date.now() });
+            setLoading(false);
+          }
+        } catch (permError) {
+          console.error("Failed to fetch permissions", permError);
+          if (!cancelled) {
+            setPerms([]);
+            setLoading(false);
+          }
+        }
       } catch (error) {
         console.error("Unexpected perms error", error);
-        setPerms([]);
-      } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) {
+          setPerms([]);
+          setLoading(false);
+        }
       }
     };
 
     load();
+    
+    // Subscrever mudanças de autenticação para atualizar permissões
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (cancelled) return;
+      
+      if (event === "SIGNED_OUT" || !session) {
+        setPerms([]);
+        clearPermsCache();
+        setLoading(false);
+        return;
+      }
+      
+      if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") {
+        // Recarregar permissões quando há mudança de sessão
+        clearPermissionsCache(session.user.id);
+        try {
+          const permissions = await getUserPermissions(session.user.id);
+          if (!cancelled) {
+            setPerms(permissions);
+            writePermsCache({ user_id: session.user.id, perms: permissions, cached_at: Date.now() });
+            setLoading(false);
+          }
+        } catch (err) {
+          console.error("Failed to reload permissions on auth change", err);
+          if (!cancelled) {
+            setPerms([]);
+            setLoading(false);
+          }
+        }
+      }
+    });
+
     return () => {
       cancelled = true;
+      subscription.unsubscribe();
     };
   }, []);
 
@@ -396,22 +455,57 @@ function useAdminGuard() {
   const location = useLocation();
   const { perms, loading } = useStaffPerms();
   const [ready, setReady] = useState(false);
+  const [checked, setChecked] = useState(false);
 
   useEffect(() => {
     let active = true;
 
     const evaluate = async () => {
-      const { data } = await supabase.auth.getSession();
+      if (!active) return;
+      
+      // Aguardar que as permissões sejam carregadas
+      if (loading) {
+        return;
+      }
+
+      const { data, error } = await supabase.auth.getSession();
       if (!active) return;
 
-      if (!data.session) {
-        if (location.pathname !== "/admin/login") navigate("/admin/login", { replace: true });
+      if (error) {
+        console.error("Failed to get session", error);
+        if (location.pathname !== "/admin/login") {
+          navigate("/admin/login", { replace: true });
+        }
         setReady(true);
         return;
       }
 
-      if (!loading) {
-        if (!canAccess(perms, location.pathname)) navigate("/admin", { replace: true });
+      if (!data.session) {
+        if (location.pathname !== "/admin/login") {
+          navigate("/admin/login", { replace: true });
+        }
+        setReady(true);
+        return;
+      }
+
+      // Verificar se o utilizador tem acesso à rota atual
+      const hasAccess = canAccess(perms, location.pathname);
+      
+      if (!hasAccess) {
+        console.warn("Access denied", { 
+          pathname: location.pathname, 
+          perms, 
+          required: requiredForPath(location.pathname) 
+        });
+        // Redirecionar para /admin (que verifica se é staff)
+        navigate("/admin", { replace: true });
+        setReady(true);
+        return;
+      }
+
+      // Se chegou aqui, tem acesso
+      if (!checked) {
+        setChecked(true);
         setReady(true);
       }
     };
@@ -420,7 +514,7 @@ function useAdminGuard() {
     return () => {
       active = false;
     };
-  }, [perms, loading, navigate, location.pathname]);
+  }, [perms, loading, navigate, location.pathname, checked]);
 
   return { ready, perms, loading };
 }
@@ -959,42 +1053,101 @@ export default function AdminLayout() {
   const [permissionsLoading, setPermissionsLoading] = useState(false);
 
   useEffect(() => {
+    let cancelled = false;
+
     const fetchUserAndPermissions = async () => {
       const { data, error } = await supabase.auth.getUser();
 
       if (error) {
         console.error("[admin-layout] Failed to fetch auth user", error);
+        if (!cancelled) {
+          setUserPermissions([]);
+          setPrimaryPermission(null);
+        }
         return;
       }
 
       const user = data.user;
       const userId = user?.id ?? null;
 
+      if (cancelled) return;
+
       setEmail(user?.email ?? null);
       console.log("[admin-layout] resolved auth user", { userId, email: user?.email });
 
       if (!userId) {
-        setUserPermissions([]);
-        setPrimaryPermission(null);
+        if (!cancelled) {
+          setUserPermissions([]);
+          setPrimaryPermission(null);
+        }
         return;
       }
 
       setPermissionsLoading(true);
       try {
         const permissions = await getUserPermissions(userId);
+        if (cancelled) return;
+        
         console.log("[admin-layout] Loaded permissions for user", { userId, permissions });
-        setUserPermissions(permissions);
-        setPrimaryPermission(permissions[0] ?? null);
+        if (!cancelled) {
+          setUserPermissions(permissions);
+          setPrimaryPermission(permissions[0] ?? null);
+        }
       } catch (err) {
         console.error("[admin-layout] Failed to load permissions", err);
-        setUserPermissions([]);
-        setPrimaryPermission(null);
+        if (!cancelled) {
+          setUserPermissions([]);
+          setPrimaryPermission(null);
+        }
       } finally {
-        setPermissionsLoading(false);
+        if (!cancelled) {
+          setPermissionsLoading(false);
+        }
       }
     };
 
     fetchUserAndPermissions();
+    
+    // Subscrever mudanças de autenticação
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (cancelled) return;
+      
+      if (event === "SIGNED_OUT" || !session) {
+        setUserPermissions([]);
+        setPrimaryPermission(null);
+        setEmail(null);
+        return;
+      }
+      
+      if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") {
+        // Recarregar permissões
+        clearPermissionsCache(session.user.id);
+        setPermissionsLoading(true);
+        try {
+          const permissions = await getUserPermissions(session.user.id);
+          if (!cancelled) {
+            setUserPermissions(permissions);
+            setPrimaryPermission(permissions[0] ?? null);
+            setEmail(session.user.email ?? null);
+          }
+        } catch (err) {
+          console.error("[admin-layout] Failed to reload permissions on auth change", err);
+          if (!cancelled) {
+            setUserPermissions([]);
+            setPrimaryPermission(null);
+          }
+        } finally {
+          if (!cancelled) {
+            setPermissionsLoading(false);
+          }
+        }
+      }
+    });
+
+    return () => {
+      cancelled = true;
+      subscription.unsubscribe();
+    };
   }, []);
 
   useEffect(() => {

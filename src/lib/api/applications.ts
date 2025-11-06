@@ -5,27 +5,21 @@ export type Status = "pending" | "approved" | "rejected";
 
 export type ApplicationRow = {
   id: string;
-  created_at: string;
+  created_at: string | null;
+  updated_at: string | null;
 
-  nome: string;
-  email: string;
+  nome: string | null;
+  email: string | null;
 
-  // Coluna legacy (pode vir null)
-  discord: string | null;
-
-  // Colunas novas
+  // Colunas Discord
   discord_id: string | null;
   discord_username: string | null;
-  discord_global_name: string | null;
-  discord_avatar_url: string | null;
-  discord_verified: boolean;
-  discord_checked_at: string | null;
 
-  personagem: string;
-  motivacao: string;
-  website: string | null;
+  personagem: string | null;
+  motivacao: string | null;
+  user_id: string | null;
 
-  status: Status;
+  status: Status | null;
 };
 
 export type ListParams = {
@@ -35,9 +29,9 @@ export type ListParams = {
   limit?: number;  // default 12, máx. 50
 };
 
-/** Colunas explícitas (evita surpresas do "*") */
+/** Colunas explícitas (evita surpresas do "*") - apenas campos que existem na tabela */
 const COLS =
-  "id,created_at,nome,email,discord,personagem,motivacao,website,status,discord_id,discord_username,discord_global_name,discord_avatar_url,discord_verified,discord_checked_at";
+  "id,created_at,updated_at,nome,email,personagem,motivacao,status,discord_id,discord_username,user_id";
 
 /** Lista com filtros e paginação */
 export async function listApplications(params: ListParams) {
@@ -64,12 +58,10 @@ export async function listApplications(params: ListParams) {
       [
         `nome.ilike.%${q}%`,
         `email.ilike.%${q}%`,
-        `discord.ilike.%${q}%`,
         `discord_username.ilike.%${q}%`,
         `discord_id.ilike.%${q}%`,
         `personagem.ilike.%${q}%`,
         `motivacao.ilike.%${q}%`,
-        `website.ilike.%${q}%`,
       ].join(",")
     );
   }
@@ -108,4 +100,49 @@ export async function setApplicationStatus(id: string, status: Status) {
 
   if (error) throw error;
   return data as ApplicationRow;
+}
+
+/** Lista candidaturas do utilizador atual (por user_id ou email) */
+export async function listMyApplications() {
+  const { data: { user } } = await supabase.auth.getUser();
+  
+  if (!user) {
+    return [];
+  }
+
+  // Buscar por user_id ou email
+  let query = supabase
+    .from("applications")
+    .select(COLS)
+    .order("created_at", { ascending: false });
+
+  // Tentar primeiro por user_id
+  if (user.id) {
+    query = query.eq("user_id", user.id);
+  } else if (user.email) {
+    // Fallback para email
+    query = query.eq("email", user.email);
+  } else {
+    return [];
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    console.error("Erro ao buscar candidaturas:", error);
+    // Se falhar por user_id, tentar por email
+    if (user.email) {
+      const { data: emailData, error: emailError } = await supabase
+        .from("applications")
+        .select(COLS)
+        .eq("email", user.email)
+        .order("created_at", { ascending: false });
+      
+      if (emailError) throw emailError;
+      return (emailData ?? []) as ApplicationRow[];
+    }
+    throw error;
+  }
+
+  return (data ?? []) as ApplicationRow[];
 }

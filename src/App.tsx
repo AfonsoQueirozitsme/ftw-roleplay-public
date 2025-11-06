@@ -19,6 +19,7 @@ import EarlyAccessTab from "@/pages/dashboard/EarlyAccessTab";
 import RulesTab from "@/pages/dashboard/RulesTab";
 import CharactersTab from "@/pages/dashboard/CharactersTab";
 import DataManagementTab from "@/pages/dashboard/DataManagementTab";
+import MyApplicationsTab from "@/pages/dashboard/MyApplicationsTab";
 
 /* — Páginas estáticas — */
 import Terms from "@/pages/static/Terms";
@@ -29,6 +30,7 @@ import About from "@/pages/static/About";
 import Events from "@/pages/static/Events";
 import News from "@/pages/static/News";
 import NewsDetail from "@/pages/static/NewsDetail";
+import Shop from "@/pages/static/Shop";
 import Punishments from "@/pages/Punishments";
 
 /* — Admin — */
@@ -45,27 +47,19 @@ import Resources from "@/pages/admin/resources";
 import DevWork from "@/pages/admin/DevWork";
 import DevLeaders from "@/pages/admin/DevLeaders";
 import RolesManagement from "@/pages/admin/roles";
-import AdminTickets from "@/pages/admin/tickets";
-import AdminRules from "@/pages/admin/rules";
-import AdminPunishments from "@/pages/admin/punishments";
-import AdminNews from "@/pages/admin/news";
-import AdminUsers from "@/pages/admin/users";
-import AdminPlayerInfo from "@/pages/admin/player-info";
-import AdminEvents from "@/pages/admin/events";
-
-/* — Redirect externo — */
-function ExternalShopRedirect() {
-  React.useEffect(() => {
-    window.location.href = "https://shopftwrp.ftw.pt/";
-  }, []);
-  return <p style={{ textAlign: "center", marginTop: "2rem" }}>A redirecionar para a loja...</p>;
-}
+import Tickets from "@/pages/admin/tickets";
+import Rules from "@/pages/admin/rules";
+import PunishmentsAdmin from "@/pages/admin/punishments";
+import Users from "@/pages/admin/users";
+import NewsAdmin from "@/pages/admin/news";
+import EventsAdmin from "@/pages/admin/events";
+import PlayerInfo from "@/pages/admin/player-info";
 
 export default function App() {
   return (
     <Routes>
       {/* Público */}
-        <Route element={<Layout />}>
+      <Route element={<Layout />}>
         <Route path="/" element={<Home />} />
 
         {/* Auth público */}
@@ -83,8 +77,8 @@ export default function App() {
         <Route path="/news" element={<News />} />
         <Route path="/news/:slug" element={<NewsDetail />} />
 
-        {/* Redirecionamento externo */}
-        <Route path="/shop" element={<ExternalShopRedirect />} />
+        {/* Loja */}
+        <Route path="/shop" element={<Shop />} />
 
         {/* 404 público */}
         <Route path="*" element={<NotFound />} />
@@ -102,6 +96,7 @@ export default function App() {
         <Route index element={<Navigate to="reports" replace />} />
         <Route path="reports" element={<ReportsTab />} />
         <Route path="early-access" element={<EarlyAccessTab />} />
+        <Route path="applications" element={<MyApplicationsTab />} />
         <Route path="characters" element={<CharactersTab />} />
         <Route path="rules" element={<RulesTab />} />
         <Route path="data-management" element={<DataManagementTab />} />
@@ -109,28 +104,29 @@ export default function App() {
       </Route>
 
       {/* Admin */}
-      <Route path="/admin/login" element={<AdminLogin />} />
       <Route path="/admin" element={<AdminLayout />}>
         <Route index element={<Dashboard />} />
+        <Route path="login" element={<AdminLogin />} />
         <Route path="players" element={<Players />} />
-        <Route path="players/:ref" element={<PlayerDetail />} />
-        <Route path="txadmin" element={<TxAdmin />} />
+        <Route path="players/:id" element={<PlayerDetail />} />
         <Route path="candidaturas" element={<Candidaturas />} />
+        <Route path="txadmin" element={<TxAdmin />} />
         <Route path="logs" element={<Logs />} />
         <Route path="imagens" element={<Imagens />} />
-        <Route path="devwork" element={<DevWork />} />
         <Route path="resources" element={<Resources />} />
+        <Route path="devwork" element={<DevWork />} />
         <Route path="devleaders" element={<DevLeaders />} />
-        <Route path="news" element={<AdminNews />} />
-        <Route path="player-info" element={<AdminPlayerInfo />} />
-        <Route path="events" element={<AdminEvents />} />
         <Route path="roles" element={<RolesManagement />} />
-        <Route path="users" element={<AdminUsers />} />
-        <Route path="tickets" element={<AdminTickets />} />
-        <Route path="rules" element={<AdminRules />} />
-        <Route path="punishments" element={<AdminPunishments />} />
+        <Route path="tickets" element={<Tickets />} />
+        <Route path="rules" element={<Rules />} />
+        <Route path="punishments" element={<PunishmentsAdmin />} />
+        <Route path="users" element={<Users />} />
+        <Route path="news" element={<NewsAdmin />} />
+        <Route path="events" element={<EventsAdmin />} />
+        <Route path="player-info" element={<PlayerInfo />} />
         <Route path="*" element={<NotFound />} />
       </Route>
     </Routes>
   );
 }
+

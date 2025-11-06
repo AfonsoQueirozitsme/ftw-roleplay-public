@@ -45,11 +45,31 @@ export const clearPermissionsCache = (userId?: string) => {
   if (userId) {
     permissionsCache.delete(userId);
     debug("Cleared permissions cache for user", { userId });
+    
+    // Também limpar cache do localStorage se existir
+    try {
+      const cacheKey = `ftw_perms_cache_${userId}`;
+      localStorage.removeItem(cacheKey);
+    } catch (e) {
+      // Ignorar erros de localStorage
+    }
     return;
   }
 
   permissionsCache.clear();
   debug("Cleared permissions cache for all users");
+  
+  // Limpar todos os caches do localStorage relacionados
+  try {
+    const keys = Object.keys(localStorage);
+    keys.forEach(key => {
+      if (key.startsWith('ftw_perms_cache_')) {
+        localStorage.removeItem(key);
+      }
+    });
+  } catch (e) {
+    // Ignorar erros de localStorage
+  }
 };
 
 export async function getUserPermissions(userId: string): Promise<string[]> {

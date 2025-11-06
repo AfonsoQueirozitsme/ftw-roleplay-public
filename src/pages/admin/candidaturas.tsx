@@ -24,17 +24,18 @@ type GuildStats = {
 };
 
 function Badge({ status }: { status: ApplicationRow["status"] }) {
-  const map: Record<ApplicationRow["status"], string> = {
+  const actualStatus = status || "pending";
+  const map: Record<string, string> = {
     pending: "bg-amber-400/20 text-amber-200",
     approved: "bg-emerald-400/20 text-emerald-200",
     rejected: "bg-rose-400/20 text-rose-200",
   };
-  const label: Record<ApplicationRow["status"], string> = {
+  const label: Record<string, string> = {
     pending: "Pendente",
     approved: "Aprovada",
     rejected: "Recusada",
   };
-  return <span className={`text-xs px-2 py-0.5 rounded ${map[status]}`}>{label[status]}</span>;
+  return <span className={`text-xs px-2 py-0.5 rounded ${map[actualStatus] || map.pending}`}>{label[actualStatus] || label.pending}</span>;
 }
 
 function discordCreatedFromSnowflake(id?: string | null) {
@@ -64,6 +65,12 @@ export default function Candidaturas() {
   const [openData, setOpenData] = useState<ApplicationRow | null>(null);
   const [openLoading, setOpenLoading] = useState(false);
   const [stats, setStats] = useState<GuildStats | null>(null);
+  const [discordDetails, setDiscordDetails] = useState<{
+    username?: string | null;
+    global_name?: string | null;
+    avatar_url?: string | null;
+    created_at_from_snowflake?: string | null;
+  } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -88,16 +95,39 @@ export default function Candidaturas() {
     if (!openId) {
       setOpenData(null);
       setStats(null);
+      setDiscordDetails(null);
       return;
     }
     let cancelled = false;
     setOpenLoading(true);
     setStats(null);
+    setDiscordDetails(null);
     getApplication(openId)
       .then(async (d) => {
         if (cancelled) return;
         setOpenData(d);
         if (d.discord_id) {
+          // Buscar dados completos do Discord via discord-lookup
+          try {
+            const { data: lookupData, error: lookupError } = await supabase.functions.invoke("discord-lookup", {
+              body: { discordId: d.discord_id },
+            });
+            if (cancelled) return;
+            if (!lookupError && lookupData?.ok && lookupData?.user) {
+              setDiscordDetails({
+                username: lookupData.user.username,
+                global_name: lookupData.user.global_name,
+                avatar_url: lookupData.user.avatar_url,
+                created_at_from_snowflake: lookupData.user.created_at_from_snowflake,
+              });
+            }
+          } catch (err) {
+            if (!cancelled) {
+              console.warn("discord-lookup falhou:", err);
+            }
+          }
+
+          // Buscar stats do servidor Discord
           try {
             const { data, error } = await supabase.functions.invoke("discord-guild-stats", {
               body: { discordId: d.discord_id },
@@ -140,7 +170,7 @@ export default function Candidaturas() {
     const accPts = Math.min(30, Math.floor(accDays / 60));
     if (created) { score += accPts; parts.push(`Conta Discord: ${accDays} dias (+${accPts})`); }
 
-    if (app.discord_verified) { score += 10; parts.push("Discord verificado (+10)"); }
+    // Discord verified não existe mais na tabela, removido
 
     if (s?.joined_at) {
       const joinDays = daysSince(s.joined_at);
@@ -176,9 +206,10 @@ export default function Candidaturas() {
 
   // ordenar pendentes primeiro, depois aprovadas, depois reprovadas
   function statusWeight(s: ApplicationRow["status"]) {
-    if (s === "pending") return 0;
-    if (s === "approved") return 1;
-    if (s === "rejected") return 2;
+    const status = s || "pending";
+    if (status === "pending") return 0;
+    if (status === "approved") return 1;
+    if (status === "rejected") return 2;
     return 3;
   }
 
@@ -187,7 +218,9 @@ export default function Candidaturas() {
       const sa = statusWeight(a.status);
       const sb = statusWeight(b.status);
       if (sa !== sb) return sa - sb;
-      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      const timeA = a.created_at ? new Date(a.created_at).getTime() : 0;
+      const timeB = b.created_at ? new Date(b.created_at).getTime() : 0;
+      return timeB - timeA;
     });
   }, [rows]);
 
@@ -255,15 +288,11 @@ export default function Candidaturas() {
               sortedRows.map((app) => (
                 <tr key={app.id} className="border-t border-white/10 hover:bg-white/5">
                   <td className="p-3">
-                    {app.discord_avatar_url ? (
-                      <img src={app.discord_avatar_url} alt="avatar" className="w-8 h-8 rounded-full" />
-                    ) : (
-                      <UserCircle2 className="w-8 h-8 text-white/40" />
-                    )}
+                    <UserCircle2 className="w-8 h-8 text-white/40" />
                   </td>
                   <td className="p-3">{app.discord_username ? `@${app.discord_username}` : (app.discord_id ?? "—")}</td>
                   <td className="p-3"><Badge status={app.status} /></td>
-                  <td className="p-3">{new Date(app.created_at).toLocaleString("pt-PT")}</td>
+                  <td className="p-3">{app.created_at ? new Date(app.created_at).toLocaleString("pt-PT") : "—"}</td>
                   <td className="p-3 text-right">
                     <button className="px-3 py-1.5 rounded bg-white/10 hover:bg-white/20" onClick={() => setOpenId(app.id)}>Ver</button>
                   </td>
@@ -275,8 +304,8 @@ export default function Candidaturas() {
       </div>
 
       {openId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/60" onClick={() => { setOpenId(null); setOpenData(null); setStats(null); }} />
+        <div className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-8">
+          <div className="absolute inset-0 bg-black/60" onClick={() => { setOpenId(null); setOpenData(null); setStats(null); setDiscordDetails(null); }} />
           <div className="relative w-full max-w-[920px] max-h-[90vh] overflow-y-auto rounded-2xl border border-white/10 bg-[#0b0b0c] text-white p-6">
             {!openData || openLoading ? (
               <div className="flex items-center gap-2"><Spinner /> A carregar…</div>
@@ -284,7 +313,8 @@ export default function Candidaturas() {
               <ProfileDetails
                 app={openData}
                 stats={stats}
-                onClose={() => { setOpenId(null); setOpenData(null); setStats(null); }}
+                discordDetails={discordDetails}
+                onClose={() => { setOpenId(null); setOpenData(null); setStats(null); setDiscordDetails(null); }}
                 onStatus={async (next) => {
                   try {
                     await setApplicationStatus(openData.id, next);
@@ -308,32 +338,49 @@ export default function Candidaturas() {
 function ProfileDetails({
   app,
   stats,
+  discordDetails,
   onClose,
   onStatus,
   computeTrust,
 }: {
   app: ApplicationRow;
   stats: GuildStats | null;
+  discordDetails: {
+    username?: string | null;
+    global_name?: string | null;
+    avatar_url?: string | null;
+    created_at_from_snowflake?: string | null;
+  } | null;
   onClose: () => void;
   onStatus: (next: ApplicationRow["status"]) => Promise<void>;
   computeTrust: (a: ApplicationRow, s: GuildStats | null) => { score: number; parts: string[]; rec: "approve" | "waitlist" | "reject" };
 }) {
-  const created = discordCreatedFromSnowflake(app.discord_id);
+  const created = discordCreatedFromSnowflake(app.discord_id || discordDetails?.created_at_from_snowflake || null);
   const { score, parts, rec } = computeTrust(app, stats);
   const RecIcon = rec === "approve" ? CheckCircle : rec === "reject" ? XCircle : HelpCircle;
   const recClass = rec === "approve" ? "text-emerald-400" : rec === "reject" ? "text-rose-400" : "text-amber-300";
+  
+  const displayUsername = discordDetails?.username || app.discord_username;
+  const displayGlobalName = discordDetails?.global_name;
+  const displayAvatar = discordDetails?.avatar_url;
+  
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-4 min-w-0">
-          {app.discord_avatar_url ? (
-            <img src={app.discord_avatar_url} alt="avatar" className="w-16 h-16 rounded-full" />
+          {displayAvatar ? (
+            <img src={displayAvatar} alt="Avatar" className="w-16 h-16 rounded-full border border-white/10 object-cover" />
           ) : (
             <UserCircle2 className="w-16 h-16 text-white/40" />
           )}
           <div className="min-w-0">
-            <div className="text-lg font-semibold truncate">{app.discord_global_name || app.discord_username || app.nome}</div>
-            <div className="text-white/60 text-sm truncate">{app.discord_username ? `@${app.discord_username}` : (app.discord_id ?? "—")}</div>
+            <div className="text-lg font-semibold truncate">{displayGlobalName || displayUsername || app.nome || "Sem nome"}</div>
+            <div className="text-white/60 text-sm truncate">
+              {displayUsername ? `@${displayUsername}` : (app.discord_id ?? app.email ?? "—")}
+            </div>
+            {app.discord_id && (
+              <div className="text-white/40 text-xs font-mono mt-0.5">ID: {app.discord_id}</div>
+            )}
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -353,15 +400,77 @@ function ProfileDetails({
       ) : null}
 
       <div className="grid md:grid-cols-2 gap-4">
-        <Card title="Dados">
-          <Field label="Nome">{app.nome}</Field>
-          <Field label="Email">{app.email}</Field>
-          <Field label="Website">{app.website || "—"}</Field>
+        <Card title="Dados Pessoais">
+          <Field label="Nome">{app.nome || "—"}</Field>
+          <Field label="Email">{app.email || "—"}</Field>
+          {app.user_id && (
+            <Field label="User ID">
+              <span className="text-xs font-mono text-white/70">{app.user_id}</span>
+            </Field>
+          )}
         </Card>
-        <Card title="Personagem & motivação">
-          <Field label="Personagem">{app.personagem}</Field>
-          <Field label="Motivação"><div className="whitespace-pre-wrap">{app.motivacao}</div></Field>
+        <Card title="Discord">
+          {app.discord_id ? (
+            <>
+              <Field label="Discord ID">
+                <span className="text-xs font-mono text-white/70">{app.discord_id}</span>
+              </Field>
+              <Field label="Username">
+                {displayUsername ? `@${displayUsername}` : "—"}
+              </Field>
+              {displayGlobalName && (
+                <Field label="Nome Global">{displayGlobalName}</Field>
+              )}
+              {created && (
+                <Field label="Conta criada em">
+                  {created.toLocaleDateString("pt-PT")} ({Math.floor((Date.now() - created.getTime()) / (1000 * 60 * 60 * 24))} dias)
+                </Field>
+              )}
+              {discordDetails?.created_at_from_snowflake && !created && (
+                <Field label="Conta criada em">
+                  {new Date(discordDetails.created_at_from_snowflake).toLocaleDateString("pt-PT")}
+                </Field>
+              )}
+            </>
+          ) : (
+            <Field label="Discord">Não fornecido</Field>
+          )}
         </Card>
+        <Card title="Personagem & Motivação">
+          <Field label="Personagem">{app.personagem || "—"}</Field>
+          <Field label="Motivação"><div className="whitespace-pre-wrap">{app.motivacao || "—"}</div></Field>
+        </Card>
+        {stats && (
+          <Card title="Estatísticas do Servidor Discord">
+            {stats.joined_at && (
+              <Field label="Membro desde">
+                {new Date(stats.joined_at).toLocaleDateString("pt-PT")} ({daysSince(stats.joined_at)} dias)
+              </Field>
+            )}
+            {typeof stats.messages_count === "number" && (
+              <Field label="Mensagens enviadas">{stats.messages_count.toLocaleString("pt-PT")}</Field>
+            )}
+            {stats.roles && stats.roles.length > 0 && (
+              <Field label="Cargos">
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {stats.roles.slice(0, 5).map((role) => (
+                    <span key={role.id} className="px-2 py-0.5 rounded text-xs bg-white/10 border border-white/10">
+                      {role.name}
+                    </span>
+                  ))}
+                  {stats.roles.length > 5 && (
+                    <span className="px-2 py-0.5 rounded text-xs bg-white/5 text-white/50">
+                      +{stats.roles.length - 5}
+                    </span>
+                  )}
+                </div>
+              </Field>
+            )}
+            {stats.username && (
+              <Field label="Username no servidor">@{stats.username}</Field>
+            )}
+          </Card>
+        )}
       </div>
 
       <div className="rounded-xl border border-white/10 bg-white/5 p-4">
