@@ -41,10 +41,10 @@ export async function createTebexCheckout(
 ): Promise<string> {
   try {
     // Obter o utilizador autenticado
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
     
-    if (!user) {
-      throw new Error("Utilizador não autenticado");
+    if (userError || !user) {
+      throw new Error("Utilizador não autenticado. Por favor, inicia sessão primeiro.");
     }
 
     // Obter o webstore ID e secret key do Tebex das variáveis de ambiente
@@ -52,8 +52,14 @@ export async function createTebexCheckout(
     const secretKey = import.meta.env.VITE_TEBEX_SECRET_KEY;
 
     if (!webstoreId || !secretKey) {
+      console.error("Tebex config missing:", { webstoreId: !!webstoreId, secretKey: !!secretKey });
       throw new Error("Configuração do Tebex não encontrada. Contacta o administrador.");
     }
+
+    // Usar o username fornecido ou email do utilizador
+    const userIdentifier = username || user.email || user.id;
+
+    console.log("Criando carrinho Tebex...", { webstoreId, packageId, userIdentifier });
 
     // Usar a API Headless do Tebex para criar um checkout
     // A API do Tebex usa o formato: https://headless.tebex.io/api/accounts/{webstoreId}/baskets
@@ -66,7 +72,7 @@ export async function createTebexCheckout(
           "X-Tebex-Secret": secretKey,
         },
         body: JSON.stringify({
-          username: username || user.email || user.id,
+          username: userIdentifier,
           complete_auto_redirect: false,
         }),
       }
@@ -74,11 +80,23 @@ export async function createTebexCheckout(
 
     if (!basketResponse.ok) {
       const errorText = await basketResponse.text();
-      console.error("Erro ao criar carrinho Tebex:", errorText);
-      throw new Error(`Erro ao criar carrinho: ${errorText}`);
+      let errorMessage = "Erro ao criar carrinho";
+      try {
+        const errorJson = JSON.parse(errorText);
+        errorMessage = errorJson.error || errorJson.message || errorText;
+      } catch {
+        errorMessage = errorText || `HTTP ${basketResponse.status}`;
+      }
+      console.error("Erro ao criar carrinho Tebex:", errorMessage);
+      throw new Error(errorMessage);
     }
 
     const basket: TebexBasket = await basketResponse.json();
+    console.log("Carrinho criado:", basket.id);
+
+    if (!basket.id) {
+      throw new Error("Resposta inválida do Tebex: carrinho sem ID");
+    }
 
     // Adicionar o pacote ao carrinho
     const addPackageResponse = await fetch(
@@ -97,17 +115,29 @@ export async function createTebexCheckout(
 
     if (!addPackageResponse.ok) {
       const errorText = await addPackageResponse.text();
-      console.error("Erro ao adicionar pacote ao carrinho:", errorText);
-      throw new Error(`Erro ao adicionar pacote ao carrinho: ${errorText}`);
+      let errorMessage = "Erro ao adicionar pacote";
+      try {
+        const errorJson = JSON.parse(errorText);
+        errorMessage = errorJson.error || errorJson.message || errorText;
+      } catch {
+        errorMessage = errorText || `HTTP ${addPackageResponse.status}`;
+      }
+      console.error("Erro ao adicionar pacote ao carrinho:", errorMessage);
+      throw new Error(errorMessage);
     }
+
+    console.log("Pacote adicionado ao carrinho com sucesso");
 
     // Retornar a URL de checkout do Tebex
     // O formato da URL depende da configuração do webstore
     const checkoutUrl = `https://checkout.tebex.io/basket/${basket.id}`;
     return checkoutUrl;
-  } catch (error) {
+  } catch (error: any) {
     console.error("Erro ao criar checkout do Tebex:", error);
-    throw error;
+    if (error instanceof Error) {
+      throw error;
+    }
+    throw new Error(error?.message || "Erro desconhecido ao processar pagamento");
   }
 }
 
@@ -122,16 +152,17 @@ export async function redeemTebexCode(
   username?: string
 ): Promise<{ success: boolean; message: string; amount?: number; currency?: string }> {
   try {
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
     
-    if (!user) {
-      throw new Error("Utilizador não autenticado");
+    if (userError || !user) {
+      throw new Error("Utilizador não autenticado. Por favor, inicia sessão primeiro.");
     }
 
     const webstoreId = import.meta.env.VITE_TEBEX_WEBSTORE_ID;
     const secretKey = import.meta.env.VITE_TEBEX_SECRET_KEY;
 
     if (!webstoreId || !secretKey) {
+      console.error("Tebex config missing:", { webstoreId: !!webstoreId, secretKey: !!secretKey });
       throw new Error("Configuração do Tebex não encontrada. Contacta o administrador.");
     }
 

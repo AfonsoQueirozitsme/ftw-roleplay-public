@@ -98,18 +98,18 @@ const NAV_SECTIONS: Array<{ id: AdminNavSectionId; label: string; description?: 
 
 const ACL: Record<string, string[] | "staff"> = {
   "/admin": "staff",
-  "/admin/players": ["manage_players", "view_players"],
-  "/admin/users": ["manage_users"],
-  "/admin/candidaturas": ["manage_applications"],
-  "/admin/txadmin": ["manage_server"],
-  "/admin/logs": ["view_logs"],
-  "/admin/imagens": ["manage_content"],
-  "/admin/news": ["manage_content"],
-  "/admin/player-info": ["manage_content"],
-  "/admin/events": ["manage_content"],
-  "/admin/resources": ["manage_server"],
-  "/admin/devwork": ["dev_work"],
-  "/admin/devleaders": ["dev_lead"],
+  "/admin/players": ["players.manage", "players.view"],
+  "/admin/users": ["users.manage"],
+  "/admin/candidaturas": ["applications.manage"],
+  "/admin/txadmin": ["server.manage"],
+  "/admin/logs": ["logs.view"],
+  "/admin/imagens": ["content.manage"],
+  "/admin/news": ["content.manage"],
+  "/admin/player-info": ["content.manage"],
+  "/admin/events": ["content.manage"],
+  "/admin/resources": ["server.manage"],
+  "/admin/devwork": ["dev.work"],
+  "/admin/devleaders": ["dev.lead"],
 };
 
 function isStaffByPerms(perms?: string[] | null): boolean {
@@ -136,7 +136,22 @@ function isManagement(perms?: string[] | null): boolean {
 
 function hasAny(perms?: string[] | null, needs?: string[]): boolean {
   if (!perms || !needs) return false;
-  return needs.some((need) => perms.includes(need));
+  return needs.some((need) => {
+    // Verificação exata
+    if (perms.includes(need)) return true;
+    
+    // Verificação por prefixo (ex: "players.*" para "players.manage" ou "players.view")
+    // Se a necessidade é "players.view", aceita se tiver "players.manage" (geralmente inclui view)
+    if (need.includes(".")) {
+      const [prefix, action] = need.split(".");
+      // Se tem manage, geralmente tem view também
+      if (action === "view" && perms.includes(`${prefix}.manage`)) return true;
+      // Se tem manage, tem todas as permissões desse módulo
+      if (perms.includes(`${prefix}.manage`)) return true;
+    }
+    
+    return false;
+  });
 }
 
 function getInitials(email: string | null): string {

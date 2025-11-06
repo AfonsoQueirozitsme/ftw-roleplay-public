@@ -23,7 +23,11 @@ function isStaffByPerms(perms?: Perms | null): boolean {
       value.startsWith("resources.") ||
       value.startsWith("applications.") ||
       value.startsWith("analytics.") ||
-      value.startsWith("vehicles.")
+      value.startsWith("vehicles.") ||
+      value.startsWith("players.") ||
+      value.startsWith("content.") ||
+      value.startsWith("server.") ||
+      value.startsWith("dev.")
   );
 }
 

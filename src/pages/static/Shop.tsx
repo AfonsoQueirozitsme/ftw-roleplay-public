@@ -111,7 +111,7 @@ export default function Shop() {
     }
 
     if (!tier.packageId || tier.packageId === 0) {
-      setError("Pacote não configurado. Contacta o suporte.");
+      setError("Pacote não configurado. Verifica as variáveis de ambiente VITE_TEBEX_PACKAGE_*");
       return;
     }
 
@@ -119,11 +119,28 @@ export default function Shop() {
     setError(null);
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      
+      if (userError || !user) {
+        throw new Error("Sessão expirada. Por favor, inicia sessão novamente.");
+      }
+
+      // Verificar se as variáveis de ambiente estão configuradas
+      const webstoreId = import.meta.env.VITE_TEBEX_WEBSTORE_ID;
+      const secretKey = import.meta.env.VITE_TEBEX_SECRET_KEY;
+
+      if (!webstoreId || !secretKey) {
+        throw new Error("Configuração do Tebex não encontrada. Contacta o administrador.");
+      }
+
+      console.log("Iniciando checkout para:", { tier: tier.name, packageId: tier.packageId });
+
       const checkoutUrl = await createTebexCheckout(
         tier.packageId,
-        user?.email || user?.user_metadata?.username
+        user.email || user.user_metadata?.username || user.id
       );
+
+      console.log("Checkout URL gerada:", checkoutUrl);
 
       // Redirecionar para o checkout do Tebex
       window.location.href = checkoutUrl;
