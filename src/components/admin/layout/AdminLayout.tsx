@@ -3,7 +3,7 @@ import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { listOnlinePlayers, listPlayers } from "@/lib/api/players";
 import { listVehiclesGlobal } from "@/lib/api/vehicles";
-import { clearPermissionsCache, getUserPermissions } from "@/shared/permissions";
+import { clearPermissionsCache } from "@/shared/permissions";
 import {
   LayoutDashboard,
   Users,
@@ -78,13 +78,22 @@ type QuickAction = {
   shortcut?: string;
 };
 
-const NAV_SECTIONS: Array<{ id: AdminNavSectionId; label: string; description?: string; color: string }> = [
-  { id: "overview", label: "Dashboard", description: "Visão geral", color: "rose" },
-  { id: "people", label: "Pessoas", description: "Jogadores e utilizadores", color: "blue" },
-  { id: "content", label: "Conteúdo", description: "Media e recursos", color: "purple" },
-  { id: "operations", label: "Operações", description: "Monitorização", color: "amber" },
-  { id: "dev", label: "Development", description: "Equipa dev", color: "emerald" },
-  { id: "system", label: "Sistema", description: "Configurações", color: "gray" },
+const SECTION_COLORS: Record<AdminNavSectionId, { bg: string; text: string; border: string; dot: string }> = {
+  overview: { bg: "bg-rose-500/20", text: "text-rose-300", border: "border-rose-500/30", dot: "bg-rose-400" },
+  people: { bg: "bg-blue-500/20", text: "text-blue-300", border: "border-blue-500/30", dot: "bg-blue-400" },
+  content: { bg: "bg-purple-500/20", text: "text-purple-300", border: "border-purple-500/30", dot: "bg-purple-400" },
+  operations: { bg: "bg-amber-500/20", text: "text-amber-300", border: "border-amber-500/30", dot: "bg-amber-400" },
+  dev: { bg: "bg-emerald-500/20", text: "text-emerald-300", border: "border-emerald-500/30", dot: "bg-emerald-400" },
+  system: { bg: "bg-gray-500/20", text: "text-gray-300", border: "border-gray-500/30", dot: "bg-gray-400" },
+};
+
+const NAV_SECTIONS: Array<{ id: AdminNavSectionId; label: string; description?: string }> = [
+  { id: "overview", label: "Dashboard", description: "Visão geral" },
+  { id: "people", label: "Pessoas", description: "Jogadores e utilizadores" },
+  { id: "content", label: "Conteúdo", description: "Media e recursos" },
+  { id: "operations", label: "Operações", description: "Monitorização" },
+  { id: "dev", label: "Development", description: "Equipa dev" },
+  { id: "system", label: "Sistema", description: "Configurações" },
 ];
 
 const ACL: Record<string, string[] | "staff"> = {
@@ -103,15 +112,30 @@ const ACL: Record<string, string[] | "staff"> = {
   "/admin/devleaders": ["dev_lead"],
 };
 
-function isStaffByPerms(perms: string[]): boolean {
-  return perms.some((p) => p.includes("staff") || p.includes("admin") || p.includes("management"));
+function isStaffByPerms(perms?: string[] | null): boolean {
+  if (!perms) return false;
+  return perms.some(
+    (p) =>
+      p.startsWith("ftw.") ||
+      p.startsWith("group.ftw_") ||
+      p === "admin.access" ||
+      p.startsWith("admin.") ||
+      p.startsWith("support.") ||
+      p.startsWith("supervise.") ||
+      p.startsWith("management.") ||
+      p.includes("staff") ||
+      p.includes("admin") ||
+      p.includes("management")
+  );
 }
 
-function isManagement(perms: string[]): boolean {
-  return perms.some((p) => p.includes("management") || p.includes("owner"));
+function isManagement(perms?: string[] | null): boolean {
+  if (!perms) return false;
+  return perms.some((p) => p.includes("management") || p.includes("owner") || p === "ftw.management.all");
 }
 
-function hasAny(perms: string[], needs: string[]): boolean {
+function hasAny(perms?: string[] | null, needs?: string[]): boolean {
+  if (!perms || !needs) return false;
   return needs.some((need) => perms.includes(need));
 }
 
@@ -530,6 +554,7 @@ export default function AdminLayout() {
                         ? location.pathname === item.to
                         : location.pathname === item.to || location.pathname.startsWith(`${item.to}/`);
                     const ItemIcon = Icon[item.icon];
+                    const colors = SECTION_COLORS[section.id];
                     return (
                       <NavLink
                         key={item.to}
@@ -537,14 +562,14 @@ export default function AdminLayout() {
                         end={!!item.exact}
                         className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition ${
                           isActive
-                            ? `bg-${section.color}-500/20 text-${section.color}-300 border border-${section.color}-500/30`
+                            ? `${colors.bg} ${colors.text} ${colors.border} border`
                             : "text-white/60 hover:bg-white/5 hover:text-white"
                         }`}
                       >
                         <ItemIcon className="h-4 w-4 flex-shrink-0" />
                         {sidebarOpen && <span className="flex-1 truncate">{item.label}</span>}
                         {sidebarOpen && isActive && (
-                          <div className={`h-1.5 w-1.5 rounded-full bg-${section.color}-400`} />
+                          <div className={`h-1.5 w-1.5 rounded-full ${colors.dot}`} />
                         )}
                       </NavLink>
                     );
@@ -650,6 +675,7 @@ export default function AdminLayout() {
                           ? location.pathname === item.to
                           : location.pathname === item.to || location.pathname.startsWith(`${item.to}/`);
                       const ItemIcon = Icon[item.icon];
+                      const colors = SECTION_COLORS[section.id];
                       return (
                         <NavLink
                           key={item.to}
@@ -658,7 +684,7 @@ export default function AdminLayout() {
                           onClick={() => setMobileMenuOpen(false)}
                           className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition ${
                             isActive
-                              ? `bg-${section.color}-500/20 text-${section.color}-300 border border-${section.color}-500/30`
+                              ? `${colors.bg} ${colors.text} ${colors.border} border`
                               : "text-white/60 hover:bg-white/5 hover:text-white"
                           }`}
                         >
