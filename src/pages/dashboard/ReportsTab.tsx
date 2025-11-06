@@ -421,6 +421,7 @@ export default function ReportsTab() {
                     key={m.id ?? i}
                     side={m.author_type === "user" ? "right" : "left"}
                     author={m.author}
+                    author_type={m.author_type}
                     content={m.content}
                     isTyping={m.isTyping}
                   />
