@@ -2,7 +2,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Search } from "lucide-react";
-import Spinner from "@/components/layout/Spinner";
+import UltraSpinner from "@/components/layout/Spinner";
 import { supabase } from "@/lib/supabase";
 import { markdownToHtml } from "@/utils/markdown";
 
@@ -207,7 +207,7 @@ export default function RulesTab() {
                     exit={{ opacity: 0, rotate: 90 }}
                     transition={{ duration: 0.15 }}
                   >
-                    <Spinner className="w-4 h-4" />
+                    <UltraSpinner size={16} />
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -299,7 +299,7 @@ export default function RulesTab() {
               <div className="border border-[#6c6c6c] p-6 rounded-none min-h-[260px]">
                 {detailLoading ? (
                   <div className="w-full h-full min-h-[200px] flex items-center justify-center">
-                    <Spinner className="w-6 h-6" />
+                    <UltraSpinner size={24} />
                   </div>
                 ) : (
                   <>

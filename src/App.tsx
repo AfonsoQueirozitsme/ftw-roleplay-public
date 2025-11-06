@@ -19,7 +19,6 @@ import EarlyAccessTab from "@/pages/dashboard/EarlyAccessTab";
 import RulesTab from "@/pages/dashboard/RulesTab";
 import CharactersTab from "@/pages/dashboard/CharactersTab";
 import DataManagementTab from "@/pages/dashboard/DataManagementTab";
-import MyApplicationsTab from "@/pages/dashboard/MyApplicationsTab";
 
 /* — Páginas estáticas — */
 import Terms from "@/pages/static/Terms";
