@@ -1,5 +1,5 @@
 // shared/discordPerms.ts
-export const DISCORD_GUILD_ID = Deno.env.get("DISCORD_GUILD_ID") ?? ""; // preenche
+export const DISCORD_GUILD_ID = import.meta.env.VITE_DISCORD_GUILD_ID ?? ""; // preenche
 export const ROLE_IDS = {
   SUPORTE: "1320804051092246681",
   SENIOR_SUPORTE: "1320804049498669076",

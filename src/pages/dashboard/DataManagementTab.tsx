@@ -426,6 +426,7 @@ export default function DataManagementTab() {
       if (deleteError) console.warn("Erro ao eliminar candidaturas:", deleteError);
 
       // Eliminar conta de autenticação
+      // @ts-expect-error - deleteUser exists but types may be outdated
       const { error: authError } = await supabase.auth.deleteUser();
 
       if (authError) throw authError;

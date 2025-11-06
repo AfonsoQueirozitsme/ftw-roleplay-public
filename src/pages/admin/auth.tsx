@@ -126,10 +126,11 @@ export default function AdminAuthPage() {
         return;
       }
 
-      if (data?.session) {
+      // mfa.verify retorna um objeto, a sessão é criada automaticamente
+      // Verificamos se não houve erro e navegamos
+      if (!error) {
+        // A sessão é criada automaticamente pelo Supabase após verificação MFA
         navigate(from, { replace: true });
-      } else {
-        setErro("Não foi possível criar sessão após MFA.");
       }
     } finally {
       setLoading(false);

@@ -1,7 +1,7 @@
 // /src/pages/dashboard/components/ReportThread.tsx
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import UltraSpinner from "@/components/UltraSpinner";
+import UltraSpinner from "@/components/layout/Spinner";
 
 type Msg = {
   id: string;

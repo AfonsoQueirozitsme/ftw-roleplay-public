@@ -128,8 +128,8 @@ export default function RulesTab() {
         const { data, error } = await supabase
           .from("player_info_posts")
           .select("id,title,content,tags,published_at,created_at")
-          .order("published_at", { ascending: false, nullsLast: false })
-          .order("created_at", { ascending: false, nullsLast: false });
+          .order("published_at", { ascending: false, nullsFirst: false })
+          .order("created_at", { ascending: false, nullsFirst: false });
 
         if (!ignore && !error && data) {
           const mapped: Post[] = data.map((row) => ({

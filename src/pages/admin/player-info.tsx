@@ -59,8 +59,8 @@ export default function AdminPlayerInfoPage() {
       const { data, error: err } = await supabase
         .from("player_info_posts")
         .select("*")
-        .order("published_at", { ascending: false, nullsLast: false })
-        .order("created_at", { ascending: false, nullsLast: false });
+        .order("published_at", { ascending: false, nullsFirst: false })
+        .order("created_at", { ascending: false, nullsFirst: false });
       if (!alive) return;
       if (err) {
         setError(err.message);

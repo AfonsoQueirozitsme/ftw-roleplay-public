@@ -88,7 +88,7 @@ function InfoRow({ k, v }: { k: string; v: string | undefined | null }) {
 function ChatBubble({
   side,
   author,
-  text,
+  content,
   isTyping,
 }: Message & { side: "left" | "right" }) {
   return (
@@ -114,7 +114,7 @@ function ChatBubble({
         ) : (
           <div
             className="text-sm leading-relaxed"
-            dangerouslySetInnerHTML={{ __html: mdToHtml(text ?? "") }}
+            dangerouslySetInnerHTML={{ __html: mdToHtml(content ?? "") }}
           />
         )}
       </div>
@@ -421,7 +421,7 @@ export default function ReportsTab() {
                     key={m.id ?? i}
                     side={m.author_type === "user" ? "right" : "left"}
                     author={m.author}
-                    text={m.content}
+                    content={m.content}
                     isTyping={m.isTyping}
                   />
                 ))}
